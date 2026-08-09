@@ -22,8 +22,10 @@
     var(--hand-tiles) * var(--tile-face-w) + (var(--hand-tiles) - 1) * var(--hand-gap) +
       1.25rem
   );
+  /* Gap + drawn-slot padding so the tsumo never sits on top of the hand */
+  --drawn-reserve: 2.25rem;
   --table-side: clamp(0rem, 8vw, 5.5rem);
-  --layout-max: calc(var(--hand-span) + var(--table-side));
+  --layout-max: calc(var(--hand-span) + var(--drawn-reserve) + var(--table-side));
 }
 
 @media (prefers-color-scheme: dark) {
@@ -331,17 +333,22 @@ button:disabled {
   display: flex;
   flex-wrap: nowrap;
   align-items: flex-end;
-  gap: 0.65rem;
+  justify-content: center;
+  gap: 0.75rem;
   width: 100%;
   margin: 0.3rem 0 0.15rem;
+  /* Keep tsumo in normal flow beside the hand, never stacked over it */
+  isolation: isolate;
 }
 
 .hand-scroll {
   overflow-x: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 0.15rem;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
 }
 
 .hand {
@@ -350,8 +357,7 @@ button:disabled {
   width: max-content;
   min-height: calc(var(--tile-h) + 0.4rem);
   padding: 0.15rem 0.1rem;
-  margin-inline: auto;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .drawn-slot {
@@ -359,11 +365,15 @@ button:disabled {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  position: relative;
+  z-index: 2;
   min-height: calc(var(--tile-h) + 0.55rem);
-  padding: 0.2rem 0.35rem 0.15rem;
+  padding: 0.2rem 0.4rem 0.15rem;
+  margin-inline-start: 0.15rem;
   border-radius: 0.55rem;
   background: color-mix(in oklab, #000 22%, transparent);
   border: 1px solid color-mix(in oklab, #38bdf8 55%, transparent);
+  box-shadow: -0.35rem 0 0.5rem color-mix(in oklab, var(--felt-edge) 55%, transparent);
 }
 
 .drawn-slot[hidden] {
@@ -402,7 +412,8 @@ button:disabled {
 
 .hand .tile {
   cursor: pointer;
-  min-width: 44px;
+  /* Hit target ≥44px tall; width follows face so 16+1 fit the layout budget */
+  min-width: 0;
   min-height: 44px;
   width: auto;
   height: auto;
@@ -661,12 +672,15 @@ button:disabled {
     max-height: none;
   }
 
-  /* Wide enough for a full hand: prefer no sideways scroll */
-  .hand-scroll {
-    overflow-x: visible;
+  .hand-row {
+    width: max-content;
+    max-width: 100%;
+    margin-inline: auto;
   }
 
-  .hand-row {
-    justify-content: center;
+  .hand-scroll {
+    /* Still clip/scroll inside the flex item — never paint over .drawn-slot */
+    overflow-x: auto;
+    flex: 0 0 auto;
   }
 }
