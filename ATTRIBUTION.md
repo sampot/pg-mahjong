@@ -8,6 +8,7 @@
 - **作者：** FluffyStuff
 - **授權：** [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)
 - 詳見 `assets/tiles/LICENSE-riichi.md`
+- 上游 Export PNG 為透明底「墨跡」；本專案已疊合至同 pack 的 `Front.png` 牌面以便在桌布上辨識。白板（白）因上游匯出為空圖，另以牌面＋框線重繪。
 
 ## 花牌（梅蘭竹菊／春夏秋冬）
 
