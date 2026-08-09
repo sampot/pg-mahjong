@@ -1,0 +1,408 @@
+:root {
+  color-scheme: light dark;
+  --bg: #e8efe9;
+  --panel: #ffffff;
+  --text: #14201a;
+  --muted: #5a6b62;
+  --line: #c9d5ce;
+  --accent: #0d6b4c;
+  --on-accent: #ffffff;
+  --felt: #1a5c45;
+  --felt-edge: #0f3d2e;
+  --danger: #b91c1c;
+  --you: #0ea5e9;
+  --tile-h: 3.4rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1210;
+    --panel: #15201b;
+    --text: #e6eee9;
+    --muted: #97a89f;
+    --line: #2a3831;
+    --accent: #34d399;
+    --on-accent: #042f1e;
+    --felt: #134433;
+    --felt-edge: #0a281e;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family:
+    "Avenir Next",
+    "Segoe UI",
+    "PingFang TC",
+    "Noto Sans TC",
+    sans-serif;
+  background:
+    radial-gradient(
+      800px 420px at 50% -8%,
+      color-mix(in oklab, var(--accent) 18%, transparent),
+      transparent 55%
+    ),
+    var(--bg);
+  color: var(--text);
+}
+
+main {
+  width: min(100%, 42rem);
+  margin: 0 auto;
+  padding: 0.75rem 0.65rem max(1rem, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.hero h1 {
+  margin: 0;
+  font-family:
+    "Iowan Old Style",
+    Palatino,
+    "Songti TC",
+    serif;
+  font-size: clamp(1.55rem, 5vw, 2rem);
+  letter-spacing: 0.14em;
+  text-align: center;
+}
+
+.tagline {
+  margin: 0.2rem 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.meter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  padding: 0.55rem 0.75rem;
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+}
+
+.meter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 3rem;
+}
+
+.meter-item .label {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.meter-actions {
+  margin-left: auto;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.55rem 1rem;
+  border-radius: 0.7rem;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--line);
+}
+
+button.accent {
+  background: #b45309;
+  color: #fff7ed;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.status {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  min-height: 1.35em;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem;
+  border-radius: 1rem;
+  background:
+    linear-gradient(160deg, color-mix(in oklab, var(--felt) 92%, #fff), var(--felt-edge));
+  border: 2px solid color-mix(in oklab, var(--felt-edge) 70%, #000);
+  color: #e8f5ef;
+}
+
+.seat-mid {
+  display: grid;
+  grid-template-columns: 1fr minmax(4.5rem, 30%) 1fr;
+  gap: 0.35rem;
+  align-items: start;
+}
+
+.seat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+  margin-bottom: 0.25rem;
+}
+
+.seat-name {
+  font-weight: 700;
+}
+
+.seat-wind {
+  opacity: 0.85;
+}
+
+.seat-count,
+.seat-score {
+  opacity: 0.8;
+}
+
+.seat-you .seat-name {
+  color: #7dd3fc;
+}
+
+.center-felt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 4.5rem;
+  padding: 0.35rem;
+}
+
+.trick-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  opacity: 0.85;
+  text-align: center;
+}
+
+.last-tile {
+  min-height: 3.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.seat-melds,
+.seat-flowers,
+.seat-discards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  margin-bottom: 0.2rem;
+}
+
+.seat-discards {
+  max-height: 3.6rem;
+  overflow: hidden;
+  opacity: 0.9;
+}
+
+.hand-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0.25rem 0;
+  padding-bottom: 0.15rem;
+}
+
+.hand {
+  display: flex;
+  gap: 0.2rem;
+  width: max-content;
+  min-height: calc(var(--tile-h) + 0.4rem);
+  padding: 0.15rem 0.1rem;
+}
+
+.tile {
+  width: calc(var(--tile-h) * 0.75);
+  height: var(--tile-h);
+  border: none;
+  padding: 0;
+  background: transparent;
+  border-radius: 0.25rem;
+  flex: 0 0 auto;
+  cursor: default;
+  position: relative;
+}
+
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 0.2rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.tile.mini {
+  width: calc(var(--tile-h) * 0.42);
+  height: calc(var(--tile-h) * 0.56);
+}
+
+.tile.back {
+  width: calc(var(--tile-h) * 0.28);
+  height: calc(var(--tile-h) * 0.38);
+}
+
+.hand .tile {
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  width: auto;
+  height: auto;
+  padding: 0.15rem;
+}
+
+.hand .tile img {
+  width: calc(var(--tile-h) * 0.78);
+  height: var(--tile-h);
+}
+
+.hand .tile.selected {
+  transform: translateY(-0.35rem);
+  outline: 2px solid #fbbf24;
+  outline-offset: 1px;
+}
+
+.hand .tile.selected img {
+  box-shadow: 0 0 0 2px #fbbf24;
+}
+
+.meld-group {
+  display: inline-flex;
+  gap: 0.08rem;
+  margin-right: 0.25rem;
+  padding: 0.1rem;
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  position: sticky;
+  bottom: 0;
+  padding: 0.45rem 0.15rem;
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.chi-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.chi-option {
+  display: inline-flex;
+  gap: 0.15rem;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--panel);
+  color: var(--text);
+  min-height: 44px;
+}
+
+.panel {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: end center;
+  padding: 0.75rem;
+  z-index: 20;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.panel-card {
+  width: min(100%, 24rem);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 1rem 1rem 0.5rem 0.5rem;
+  padding: 1rem 1rem 1.1rem;
+  border: 1px solid var(--line);
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
+.panel-card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+}
+
+.panel-card p {
+  margin: 0 0 0.55rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.tai-list {
+  margin: 0 0 0.75rem;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --tile-h: 3.8rem;
+  }
+
+  main {
+    width: min(100%, 48rem);
+  }
+
+  .panel {
+    place-items: center;
+  }
+
+  .panel-card {
+    border-radius: 1rem;
+  }
+}

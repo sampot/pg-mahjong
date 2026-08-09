@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="台灣麻將：十六張台規簡化版、四人人機、補花吃碰槓胡。純前端 Playgrounds SAM。"
+    />
+    <title>台灣麻將</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <h1>台灣麻將</h1>
+        <p class="tagline">十六張 · 簡化台 · 人機四人</p>
+      </header>
+
+      <section class="meter" aria-label="對局狀態">
+        <div class="meter-item">
+          <span class="label">圈風</span>
+          <strong id="round-wind">東</strong>
+        </div>
+        <div class="meter-item">
+          <span class="label">莊</span>
+          <strong id="dealer-label">—</strong>
+        </div>
+        <div class="meter-item">
+          <span class="label">牌山</span>
+          <strong id="wall-count">—</strong>
+        </div>
+        <div class="meter-actions">
+          <button type="button" id="btn-mute" class="secondary" aria-pressed="true">
+            音效開
+          </button>
+        </div>
+      </section>
+
+      <div class="controls">
+        <button type="button" id="btn-deal">開局</button>
+        <button type="button" id="btn-reset" class="secondary">重來</button>
+      </div>
+
+      <p id="status" class="status" role="status">點「開局」發牌。</p>
+
+      <section class="table" aria-label="牌桌">
+        <div class="seat seat-top" data-seat="2">
+          <div class="seat-meta">
+            <span class="seat-name" id="name-2">阿北</span>
+            <span class="seat-wind" id="wind-2"></span>
+            <span class="seat-count" id="count-2">0</span>
+            <span class="seat-score" id="score-2">0</span>
+          </div>
+          <div class="seat-melds" id="melds-2"></div>
+          <div class="seat-flowers" id="flowers-2"></div>
+          <div class="seat-discards" id="discards-2"></div>
+        </div>
+
+        <div class="seat-mid">
+          <div class="seat seat-left" data-seat="1">
+            <div class="seat-meta">
+              <span class="seat-name" id="name-1">小梅</span>
+              <span class="seat-wind" id="wind-1"></span>
+              <span class="seat-count" id="count-1">0</span>
+              <span class="seat-score" id="score-1">0</span>
+            </div>
+            <div class="seat-melds" id="melds-1"></div>
+            <div class="seat-flowers" id="flowers-1"></div>
+            <div class="seat-discards" id="discards-1"></div>
+          </div>
+
+          <div class="center-felt" aria-live="polite">
+            <p id="last-tile-hint" class="trick-hint">尚未打牌</p>
+            <div id="last-tile" class="last-tile"></div>
+          </div>
+
+          <div class="seat seat-right" data-seat="3">
+            <div class="seat-meta">
+              <span class="seat-name" id="name-3">黑哥</span>
+              <span class="seat-wind" id="wind-3"></span>
+              <span class="seat-count" id="count-3">0</span>
+              <span class="seat-score" id="score-3">0</span>
+            </div>
+            <div class="seat-melds" id="melds-3"></div>
+            <div class="seat-flowers" id="flowers-3"></div>
+            <div class="seat-discards" id="discards-3"></div>
+          </div>
+        </div>
+
+        <div class="seat seat-you" data-seat="0">
+          <div class="seat-meta">
+            <span class="seat-name" id="name-0">你</span>
+            <span class="seat-wind" id="wind-0"></span>
+            <span class="seat-count" id="count-0">0</span>
+            <span class="seat-score" id="score-0">0</span>
+          </div>
+          <div class="seat-melds" id="melds-0"></div>
+          <div class="seat-flowers" id="flowers-0"></div>
+          <div class="hand-scroll">
+            <div id="hand" class="hand" role="listbox" aria-label="手牌"></div>
+          </div>
+          <div class="seat-discards" id="discards-0"></div>
+        </div>
+      </section>
+
+      <div id="action-bar" class="action-bar" hidden>
+        <button type="button" id="btn-hu" class="accent" hidden>胡</button>
+        <button type="button" id="btn-kong" hidden>槓</button>
+        <button type="button" id="btn-pong" hidden>碰</button>
+        <button type="button" id="btn-chi" hidden>吃</button>
+        <button type="button" id="btn-pass" class="secondary" hidden>略過</button>
+        <button type="button" id="btn-discard" class="accent" hidden>打牌</button>
+        <button type="button" id="btn-ankong" hidden>暗槓</button>
+        <button type="button" id="btn-jiakong" hidden>加槓</button>
+      </div>
+
+      <div id="chi-picker" class="chi-picker" hidden></div>
+    </main>
+
+    <div id="panel-result" class="panel" hidden>
+      <div class="panel-card" role="dialog" aria-labelledby="result-title">
+        <h2 id="result-title">結算</h2>
+        <p id="result-body"></p>
+        <ul id="result-tai" class="tai-list"></ul>
+        <div class="panel-actions">
+          <button type="button" id="btn-result-ok">繼續</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-confirm" class="panel" hidden>
+      <div class="panel-card" role="dialog" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">重來？</h2>
+        <p>結束目前這局並回到待機。</p>
+        <div class="panel-actions">
+          <button type="button" id="btn-confirm-cancel" class="secondary">取消</button>
+          <button type="button" id="btn-confirm-ok">確定重來</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
