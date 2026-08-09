@@ -1,5 +1,6 @@
 /**
  * Original table SFX via Web Audio — no commercial samples.
+ * Must resume AudioContext under a user gesture (Playgrounds iframe / autoplay policy).
  */
 
 export class MahjongAudio {
@@ -7,12 +8,9 @@ export class MahjongAudio {
     /** @type {AudioContext | null} */
     this.ctx = null;
     this.enabled = true;
-    this.master = 0.22;
-  }
-
-  async unlock() {
-    this.ensure();
-    if (this.ctx?.state === "suspended") await this.ctx.resume();
+    this.master = 0.38;
+    /** @type {Promise<void> | null} */
+    this._unlocking = null;
   }
 
   ensure() {
@@ -20,10 +18,32 @@ export class MahjongAudio {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (AC) this.ctx = new AC();
     }
+    return this.ctx;
+  }
+
+  /**
+   * Resume context; safe to call from click / pointer handlers.
+   * @returns {Promise<boolean>} true when context is running
+   */
+  async unlock() {
+    const ctx = this.ensure();
+    if (!ctx) return false;
+    if (ctx.state === "running") return true;
+    if (!this._unlocking) {
+      this._unlocking = ctx
+        .resume()
+        .catch(() => {})
+        .finally(() => {
+          this._unlocking = null;
+        });
+    }
+    await this._unlocking;
+    return ctx.state === "running";
   }
 
   setEnabled(on) {
     this.enabled = on;
+    if (on) void this.unlock();
   }
 
   /**
@@ -33,53 +53,54 @@ export class MahjongAudio {
    * @param {number} [gain]
    * @param {number} [when]
    */
-  tone(freq, dur, type = "square", gain = 0.12, when = 0) {
+  async tone(freq, dur, type = "square", gain = 0.14, when = 0) {
     if (!this.enabled) return;
-    this.ensure();
+    const ok = await this.unlock();
+    if (!ok) return;
     const ctx = this.ctx;
     if (!ctx) return;
-    if (ctx.state === "suspended") void ctx.resume();
     const t0 = ctx.currentTime + when;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t0);
+    const peak = Math.max(0.0001, gain * this.master);
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gain * this.master, t0 + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(0.03, dur));
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(0.04, dur));
     osc.connect(g);
     g.connect(ctx.destination);
     osc.start(t0);
-    osc.stop(t0 + dur + 0.03);
+    osc.stop(t0 + dur + 0.04);
   }
 
-  deal() {
+  async deal() {
     for (let i = 0; i < 6; i++) {
-      this.tone(300 + i * 35, 0.035, "triangle", 0.05, i * 0.03);
+      void this.tone(300 + i * 35, 0.045, "triangle", 0.12, i * 0.035);
     }
   }
 
-  discard() {
-    this.tone(240, 0.05, "triangle", 0.08);
-    this.tone(180, 0.06, "square", 0.04, 0.04);
+  async discard() {
+    void this.tone(240, 0.06, "triangle", 0.16);
+    void this.tone(180, 0.07, "square", 0.1, 0.04);
   }
 
-  claim() {
-    this.tone(520, 0.06, "square", 0.08);
-    this.tone(660, 0.08, "triangle", 0.06, 0.05);
+  async claim() {
+    void this.tone(520, 0.07, "square", 0.16);
+    void this.tone(660, 0.09, "triangle", 0.12, 0.05);
   }
 
-  win() {
+  async win() {
     for (let i = 0; i < 6; i++) {
-      this.tone(392 * Math.pow(1.15, i), 0.1, "square", 0.08, i * 0.06);
+      void this.tone(392 * Math.pow(1.15, i), 0.12, "square", 0.14, i * 0.06);
     }
   }
 
-  deny() {
-    this.tone(120, 0.08, "sawtooth", 0.05);
+  async deny() {
+    void this.tone(120, 0.1, "sawtooth", 0.12);
   }
 
-  soft() {
-    this.tone(700, 0.03, "triangle", 0.04);
+  async soft() {
+    void this.tone(700, 0.04, "triangle", 0.1);
   }
 }

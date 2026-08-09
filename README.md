@@ -22,7 +22,7 @@ npx --yes serve .
 python3 -m http.server 8080
 ```
 
-點一下頁面後音效才會出聲。
+點「開局」或選牌後音效才會出聲（瀏覽器需使用者手勢解鎖 AudioContext）。確認「音效開」未關。
 
 ## 操作
 

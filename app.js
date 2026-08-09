@@ -51,25 +51,33 @@ const el = {
   btnJiakong: /** @type {HTMLButtonElement} */ (document.getElementById("btn-jiakong")),
 };
 
+/** Resume AudioContext under the current user gesture, then play. */
+async function sfx(play) {
+  await audio.unlock();
+  await play();
+}
+
 document.addEventListener(
   "pointerdown",
   () => {
     void audio.unlock();
   },
-  { once: true },
+  { passive: true },
 );
 
-el.btnMute.addEventListener("click", () => {
+el.btnMute.addEventListener("click", async () => {
   const on = el.btnMute.getAttribute("aria-pressed") !== "true";
   el.btnMute.setAttribute("aria-pressed", on ? "true" : "false");
   el.btnMute.textContent = on ? "音效開" : "音效關";
   audio.setEnabled(on);
+  if (on) await sfx(() => audio.soft());
 });
 
-el.btnDeal.addEventListener("click", () => {
+el.btnDeal.addEventListener("click", async () => {
   if (state.phase === "playing" || state.phase === "claim") return;
+  await audio.unlock();
   dispatch({ type: "deal" });
-  audio.deal();
+  await audio.deal();
 });
 
 el.btnReset.addEventListener("click", () => {
@@ -115,68 +123,76 @@ document.getElementById("btn-result-ok")?.addEventListener("click", () => {
   render();
 });
 
-el.btnDiscard.addEventListener("click", () => {
+el.btnDiscard.addEventListener("click", async () => {
   if (selectedId == null) {
-    audio.deny();
+    await sfx(() => audio.deny());
     return;
   }
+  await audio.unlock();
   dispatch({ type: "discard", seat: PLAYER, tileId: selectedId });
   selectedId = null;
-  audio.discard();
+  await audio.discard();
 });
 
-el.btnHu.addEventListener("click", () => {
+el.btnHu.addEventListener("click", async () => {
+  await audio.unlock();
   if (state.phase === "claim") {
     dispatch({ type: "hu_claim", seat: PLAYER });
   } else {
     dispatch({ type: "hu_self", seat: PLAYER });
   }
-  audio.claim();
+  await audio.claim();
 });
 
-el.btnKong.addEventListener("click", () => {
+el.btnKong.addEventListener("click", async () => {
+  await audio.unlock();
   dispatch({ type: "claim", seat: PLAYER, intent: { kind: "kong" } });
-  audio.claim();
+  await audio.claim();
 });
 
-el.btnPong.addEventListener("click", () => {
+el.btnPong.addEventListener("click", async () => {
+  await audio.unlock();
   dispatch({ type: "claim", seat: PLAYER, intent: { kind: "pong" } });
-  audio.claim();
+  await audio.claim();
 });
 
-el.btnChi.addEventListener("click", () => {
+el.btnChi.addEventListener("click", async () => {
   const opts = listChiOptions(state, PLAYER);
   if (opts.length === 1) {
+    await audio.unlock();
     dispatch({
       type: "claim",
       seat: PLAYER,
       intent: { kind: "chi", chiTiles: opts[0] },
     });
-    audio.claim();
+    await audio.claim();
     return;
   }
   showChiPicker(opts);
 });
 
-el.btnPass.addEventListener("click", () => {
+el.btnPass.addEventListener("click", async () => {
+  await audio.unlock();
   dispatch({ type: "pass_claim", seat: PLAYER });
-  audio.soft();
+  await audio.soft();
 });
 
-el.btnAnkong.addEventListener("click", () => {
+el.btnAnkong.addEventListener("click", async () => {
   const keys = anKongKeys(state, PLAYER);
   if (!keys.length) return;
+  await audio.unlock();
   dispatch({ type: "ankong", seat: PLAYER, key: keys[0] });
-  audio.claim();
+  await audio.claim();
 });
 
-el.btnJiakong.addEventListener("click", () => {
+el.btnJiakong.addEventListener("click", async () => {
   const ids = jiaKongTileIds(state, PLAYER);
   if (!ids.length) return;
   const id = selectedId != null && ids.includes(selectedId) ? selectedId : ids[0];
+  await audio.unlock();
   dispatch({ type: "jiakong", seat: PLAYER, tileId: id });
   selectedId = null;
-  audio.claim();
+  await audio.claim();
 });
 
 /**
@@ -188,7 +204,7 @@ function dispatch(action) {
   render();
   if (state.phase === "ended" && prev !== "ended") {
     showResult();
-    audio.win();
+    void audio.win();
     return;
   }
   scheduleAi();
@@ -231,14 +247,14 @@ function scheduleAi() {
       busy = false;
       if (action) {
         state = applyAction(state, action);
-        if (action.type === "discard") audio.discard();
+        if (action.type === "discard") void audio.discard();
         else if (action.type.startsWith("hu") || action.type.includes("kong")) {
-          audio.claim();
+          void audio.claim();
         }
         render();
         if (state.phase === "ended") {
           showResult();
-          audio.win();
+          void audio.win();
           return;
         }
         scheduleAi();
@@ -275,7 +291,7 @@ function runAiClaims() {
   render();
   if (state.phase === "ended") {
     showResult();
-    audio.win();
+    void audio.win();
     return;
   }
   scheduleAi();
@@ -296,14 +312,15 @@ function showChiPicker(opts) {
     }
     const disc = state.claim?.tile;
     if (disc) btn.appendChild(tileImg(disc.key, true));
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       el.chiPicker.hidden = true;
+      await audio.unlock();
       dispatch({
         type: "claim",
         seat: PLAYER,
         intent: { kind: "chi", chiTiles: pair },
       });
-      audio.claim();
+      await audio.claim();
     });
     el.chiPicker.appendChild(btn);
   }
@@ -417,7 +434,7 @@ function handTileButton(t, isDrawn) {
       return;
     }
     selectedId = selectedId === t.id ? null : t.id;
-    audio.soft();
+    void sfx(() => audio.soft());
     render();
   });
   return btn;
