@@ -21,6 +21,8 @@
   --tile-h: calc(var(--tile-face-w) * 4 / 3);
   --mini-h: calc(var(--tile-h) * 0.58);
   --mini-w: calc(var(--mini-h) * 0.75);
+  /* Selected discard candidate rises; reserve space (overflow-x clips y too) */
+  --select-lift: 0.75rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -238,6 +240,7 @@ button:disabled {
   flex-direction: column;
   gap: 0.3rem;
   margin-top: auto;
+  overflow: visible;
 }
 
 .seat-meta {
@@ -336,28 +339,34 @@ button:disabled {
   justify-content: flex-start;
   gap: 0.55rem;
   width: 100%;
-  margin: 0.3rem 0 0.15rem;
+  margin: 0.15rem 0 0.15rem;
   box-sizing: border-box;
+  /* Room above the row for lifted tiles (parents must not clip) */
+  padding-top: calc(var(--select-lift) + 0.2rem);
 }
 
 .hand-scroll {
   /* Bounded scrollport; hand content may be wider (mobile) */
   flex: 1 1 auto;
   min-width: 0;
+  /*
+   * Spec: if overflow-x is not visible, overflow-y can’t stay visible —
+   * it becomes auto/clip and cuts off translateY. Pad the scrollport
+   * so the lift stays inside the box instead.
+   */
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x;
-  padding-bottom: 0.35rem;
-  /* Extra room so selected tile lift isn’t clipped */
-  padding-top: 0.35rem;
-  margin-top: -0.2rem;
+  padding: var(--select-lift) 0 0.2rem;
+  margin-top: calc(-1 * var(--select-lift));
 }
 
 .hand {
   display: flex;
   flex-wrap: nowrap;
+  align-items: flex-end;
   gap: var(--hand-gap);
   /* Must NOT max-width:100% — that kills horizontal scroll */
   width: max-content;
@@ -374,8 +383,11 @@ button:disabled {
   position: relative;
   z-index: 1;
   width: calc(var(--tile-face-w) + 0.7rem);
-  min-height: calc(var(--tile-h) + 0.35rem);
-  padding: 0.15rem 0.3rem;
+  min-height: calc(var(--tile-h) + var(--select-lift));
+  padding: var(--select-lift) 0.3rem 0.15rem;
+  margin-top: calc(-1 * var(--select-lift));
+  box-sizing: border-box;
+  overflow: visible;
   border-radius: 0.55rem;
   background: color-mix(in oklab, #000 22%, transparent);
   border: 1px solid color-mix(in oklab, #38bdf8 55%, transparent);
@@ -432,7 +444,7 @@ button:disabled {
 
 .hand .tile.selected,
 .drawn-slot .tile.selected {
-  transform: translateY(-0.7rem);
+  transform: translateY(calc(-1 * var(--select-lift)));
   z-index: 2;
   outline: 2px solid #fbbf24;
   outline-offset: 1px;
