@@ -1,0 +1,51 @@
+/* Tile faces via CSS url() so go-client composePreview rewrites to blob: */
+.tile-face {
+  display: block;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.tile-face-back { background-image: url("./assets/tiles/Back.png"); }
+.tile-face-man1 { background-image: url("./assets/tiles/Man1.png"); }
+.tile-face-man2 { background-image: url("./assets/tiles/Man2.png"); }
+.tile-face-man3 { background-image: url("./assets/tiles/Man3.png"); }
+.tile-face-man4 { background-image: url("./assets/tiles/Man4.png"); }
+.tile-face-man5 { background-image: url("./assets/tiles/Man5.png"); }
+.tile-face-man6 { background-image: url("./assets/tiles/Man6.png"); }
+.tile-face-man7 { background-image: url("./assets/tiles/Man7.png"); }
+.tile-face-man8 { background-image: url("./assets/tiles/Man8.png"); }
+.tile-face-man9 { background-image: url("./assets/tiles/Man9.png"); }
+.tile-face-pin1 { background-image: url("./assets/tiles/Pin1.png"); }
+.tile-face-pin2 { background-image: url("./assets/tiles/Pin2.png"); }
+.tile-face-pin3 { background-image: url("./assets/tiles/Pin3.png"); }
+.tile-face-pin4 { background-image: url("./assets/tiles/Pin4.png"); }
+.tile-face-pin5 { background-image: url("./assets/tiles/Pin5.png"); }
+.tile-face-pin6 { background-image: url("./assets/tiles/Pin6.png"); }
+.tile-face-pin7 { background-image: url("./assets/tiles/Pin7.png"); }
+.tile-face-pin8 { background-image: url("./assets/tiles/Pin8.png"); }
+.tile-face-pin9 { background-image: url("./assets/tiles/Pin9.png"); }
+.tile-face-sou1 { background-image: url("./assets/tiles/Sou1.png"); }
+.tile-face-sou2 { background-image: url("./assets/tiles/Sou2.png"); }
+.tile-face-sou3 { background-image: url("./assets/tiles/Sou3.png"); }
+.tile-face-sou4 { background-image: url("./assets/tiles/Sou4.png"); }
+.tile-face-sou5 { background-image: url("./assets/tiles/Sou5.png"); }
+.tile-face-sou6 { background-image: url("./assets/tiles/Sou6.png"); }
+.tile-face-sou7 { background-image: url("./assets/tiles/Sou7.png"); }
+.tile-face-sou8 { background-image: url("./assets/tiles/Sou8.png"); }
+.tile-face-sou9 { background-image: url("./assets/tiles/Sou9.png"); }
+.tile-face-ton { background-image: url("./assets/tiles/Ton.png"); }
+.tile-face-nan { background-image: url("./assets/tiles/Nan.png"); }
+.tile-face-shaa { background-image: url("./assets/tiles/Shaa.png"); }
+.tile-face-pei { background-image: url("./assets/tiles/Pei.png"); }
+.tile-face-haku { background-image: url("./assets/tiles/Haku.png"); }
+.tile-face-hatsu { background-image: url("./assets/tiles/Hatsu.png"); }
+.tile-face-chun { background-image: url("./assets/tiles/Chun.png"); }
+.tile-face-flower_plum { background-image: url("./assets/tiles/FlowerPlum.png"); }
+.tile-face-flower_orchid { background-image: url("./assets/tiles/FlowerOrchid.png"); }
+.tile-face-flower_bamboo { background-image: url("./assets/tiles/FlowerBamboo.png"); }
+.tile-face-flower_chrys { background-image: url("./assets/tiles/FlowerChrys.png"); }
+.tile-face-season_spring { background-image: url("./assets/tiles/SeasonSpring.png"); }
+.tile-face-season_summer { background-image: url("./assets/tiles/SeasonSummer.png"); }
+.tile-face-season_autumn { background-image: url("./assets/tiles/SeasonAutumn.png"); }
+.tile-face-season_winter { background-image: url("./assets/tiles/SeasonWinter.png"); }

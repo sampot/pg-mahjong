@@ -259,11 +259,9 @@ button:disabled {
   position: relative;
 }
 
-.tile img {
+.tile .tile-face {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  display: block;
   border-radius: 0.2rem;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   pointer-events: none;
@@ -288,7 +286,7 @@ button:disabled {
   padding: 0.15rem;
 }
 
-.hand .tile img {
+.hand .tile .tile-face {
   width: calc(var(--tile-h) * 0.78);
   height: var(--tile-h);
 }
@@ -299,7 +297,7 @@ button:disabled {
   outline-offset: 1px;
 }
 
-.hand .tile.selected img {
+.hand .tile.selected .tile-face {
   box-shadow: 0 0 0 2px #fbbf24;
 }
 

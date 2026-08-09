@@ -52,6 +52,7 @@ python3 -m http.server 8080
 | `app.js` | UI、叫牌、AI 節奏 |
 | `game.js` | 規則、`applyAction`、計台 |
 | `tiles.js` | 牌鍵與圖檔 |
+| `tiles.css` | 牌面 `background-image`（go srcdoc 可改寫 blob） |
 | `ai.js` | 簡易人機 |
 | `protocol.js` | 預留 `mahjong.v1`（無網路） |
 | `audio.js` | Web Audio |

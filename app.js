@@ -11,13 +11,7 @@ import {
   listChiOptions,
   seatWindLabel,
 } from "./game.js";
-import {
-  SEAT_NAMES,
-  WIND_LABELS,
-  assetPath,
-  backPath,
-  tileDef,
-} from "./tiles.js";
+import { SEAT_NAMES, WIND_LABELS, tileDef } from "./tiles.js";
 
 const audio = new MahjongAudio();
 /** @type {import('./game.js').GameState} */
@@ -380,7 +374,10 @@ function renderHand() {
     btn.setAttribute("role", "option");
     btn.setAttribute("aria-selected", selectedId === t.id ? "true" : "false");
     btn.title = tileDef(t.key).label;
-    btn.appendChild(tileImg(t.key, false));
+    const face = document.createElement("span");
+    face.className = `tile-face tile-face-${t.key}`;
+    face.setAttribute("aria-hidden", "true");
+    btn.appendChild(face);
     btn.addEventListener("click", () => {
       if (busy) return;
       if (
@@ -507,19 +504,21 @@ function renderActions() {
 }
 
 /**
+ * CSS background faces (tiles.css) — works under go-client srcdoc blob rewrite.
  * @param {string | null} key
  * @param {boolean} mini
  * @param {boolean} [forceBack]
  */
 function tileImg(key, mini, forceBack = false) {
-  const btn = document.createElement("span");
-  btn.className = "tile" + (mini ? " mini" : "") + (forceBack || !key ? " back" : "");
-  const img = document.createElement("img");
-  img.alt = key ? tileDef(key).label : "牌背";
-  img.src = forceBack || !key ? backPath() : assetPath(key);
-  img.decoding = "async";
-  btn.appendChild(img);
-  return btn;
+  const wrap = document.createElement("span");
+  wrap.className = "tile" + (mini ? " mini" : "") + (forceBack || !key ? " back" : "");
+  const face = document.createElement("span");
+  const faceKey = forceBack || !key ? "back" : key;
+  face.className = `tile-face tile-face-${faceKey}`;
+  face.setAttribute("role", "img");
+  face.setAttribute("aria-label", key && !forceBack ? tileDef(key).label : "牌背");
+  wrap.appendChild(face);
+  return wrap;
 }
 
 render();
