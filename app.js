@@ -51,10 +51,12 @@ const el = {
   btnJiakong: /** @type {HTMLButtonElement} */ (document.getElementById("btn-jiakong")),
 };
 
-/** Resume AudioContext under the current user gesture, then play. */
-async function sfx(play) {
-  await audio.unlock();
-  await play();
+/** Best-effort SFX — never block game actions on AudioContext resume. */
+function sfx(play) {
+  void (async () => {
+    await audio.unlock();
+    await play();
+  })();
 }
 
 document.addEventListener(
@@ -65,19 +67,18 @@ document.addEventListener(
   { passive: true },
 );
 
-el.btnMute.addEventListener("click", async () => {
+el.btnMute.addEventListener("click", () => {
   const on = el.btnMute.getAttribute("aria-pressed") !== "true";
   el.btnMute.setAttribute("aria-pressed", on ? "true" : "false");
   el.btnMute.textContent = on ? "音效開" : "音效關";
   audio.setEnabled(on);
-  if (on) await sfx(() => audio.soft());
+  if (on) sfx(() => audio.soft());
 });
 
-el.btnDeal.addEventListener("click", async () => {
+el.btnDeal.addEventListener("click", () => {
   if (state.phase === "playing" || state.phase === "claim") return;
-  await audio.unlock();
   dispatch({ type: "deal" });
-  await audio.deal();
+  sfx(() => audio.deal());
 });
 
 el.btnReset.addEventListener("click", () => {
@@ -123,76 +124,68 @@ document.getElementById("btn-result-ok")?.addEventListener("click", () => {
   render();
 });
 
-el.btnDiscard.addEventListener("click", async () => {
+el.btnDiscard.addEventListener("click", () => {
   if (selectedId == null) {
-    await sfx(() => audio.deny());
+    sfx(() => audio.deny());
     return;
   }
-  await audio.unlock();
   dispatch({ type: "discard", seat: PLAYER, tileId: selectedId });
   selectedId = null;
-  await audio.discard();
+  sfx(() => audio.discard());
 });
 
-el.btnHu.addEventListener("click", async () => {
-  await audio.unlock();
+el.btnHu.addEventListener("click", () => {
   if (state.phase === "claim") {
     dispatch({ type: "hu_claim", seat: PLAYER });
   } else {
     dispatch({ type: "hu_self", seat: PLAYER });
   }
-  await audio.claim();
+  sfx(() => audio.claim());
 });
 
-el.btnKong.addEventListener("click", async () => {
-  await audio.unlock();
+el.btnKong.addEventListener("click", () => {
   dispatch({ type: "claim", seat: PLAYER, intent: { kind: "kong" } });
-  await audio.claim();
+  sfx(() => audio.claim());
 });
 
-el.btnPong.addEventListener("click", async () => {
-  await audio.unlock();
+el.btnPong.addEventListener("click", () => {
   dispatch({ type: "claim", seat: PLAYER, intent: { kind: "pong" } });
-  await audio.claim();
+  sfx(() => audio.claim());
 });
 
-el.btnChi.addEventListener("click", async () => {
+el.btnChi.addEventListener("click", () => {
   const opts = listChiOptions(state, PLAYER);
   if (opts.length === 1) {
-    await audio.unlock();
     dispatch({
       type: "claim",
       seat: PLAYER,
       intent: { kind: "chi", chiTiles: opts[0] },
     });
-    await audio.claim();
+    sfx(() => audio.claim());
     return;
   }
   showChiPicker(opts);
 });
 
-el.btnPass.addEventListener("click", async () => {
-  await audio.unlock();
+el.btnPass.addEventListener("click", () => {
   dispatch({ type: "pass_claim", seat: PLAYER });
-  await audio.soft();
+  sfx(() => audio.soft());
 });
 
-el.btnAnkong.addEventListener("click", async () => {
+el.btnAnkong.addEventListener("click", () => {
   const keys = anKongKeys(state, PLAYER);
   if (!keys.length) return;
-  await audio.unlock();
   dispatch({ type: "ankong", seat: PLAYER, key: keys[0] });
-  await audio.claim();
+  sfx(() => audio.claim());
 });
 
-el.btnJiakong.addEventListener("click", async () => {
+el.btnJiakong.addEventListener("click", () => {
   const ids = jiaKongTileIds(state, PLAYER);
   if (!ids.length) return;
   const id = selectedId != null && ids.includes(selectedId) ? selectedId : ids[0];
-  await audio.unlock();
   dispatch({ type: "jiakong", seat: PLAYER, tileId: id });
   selectedId = null;
-  await audio.claim();
+  sfx(() => audio.claim());
 });
 
 /**
@@ -312,15 +305,14 @@ function showChiPicker(opts) {
     }
     const disc = state.claim?.tile;
     if (disc) btn.appendChild(tileImg(disc.key, true));
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
       el.chiPicker.hidden = true;
-      await audio.unlock();
       dispatch({
         type: "claim",
         seat: PLAYER,
         intent: { kind: "chi", chiTiles: pair },
       });
-      await audio.claim();
+      sfx(() => audio.claim());
     });
     el.chiPicker.appendChild(btn);
   }

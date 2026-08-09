@@ -37,7 +37,11 @@ export class MahjongAudio {
           this._unlocking = null;
         });
     }
-    await this._unlocking;
+    // go-client / some WebViews: resume() may never settle — don't block UI
+    await Promise.race([
+      this._unlocking,
+      new Promise((r) => setTimeout(r, 300)),
+    ]);
     return ctx.state === "running";
   }
 
