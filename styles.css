@@ -17,6 +17,7 @@
   --danger: #b91c1c;
   --you: #0ea5e9;
   --hand-gap: 0.16rem;
+  --hand-row-gap: 0.7rem;
   /* Comfortable face width — do not keep growing with the viewport */
   --tile-face-max: 3rem;
   /*
@@ -24,6 +25,14 @@
    * (Must not under-count or the 16th hand tile clips under 新牌.)
    */
   --drawn-reserve: calc(var(--tile-face-max) + 1.6rem);
+  /*
+   * Whole game (main) width cap ≈ 16 hand + 1 drawn at max face
+   * + main pad / wood rail / felt inset. Wider viewports center — no full-bleed.
+   */
+  --layout-max: calc(
+    16 * var(--tile-face-max) + 15 * var(--hand-gap) + var(--hand-row-gap) +
+      var(--drawn-reserve) + 5.5rem
+  );
   /*
    * Mobile-first: readable tiles; hand scrolls horizontally.
    * Wide felt may shrink below max so 16+1 fit — never grow past max.
@@ -94,9 +103,9 @@ body {
 }
 
 main {
-  /* Use the full canvas / viewport width */
-  width: 100%;
-  max-width: none;
+  /* Cap at ~17-tile comfort width; center when the viewport is wider */
+  width: min(100%, var(--layout-max));
+  max-width: var(--layout-max);
   margin: 0 auto;
   padding: 0.65rem 0.65rem max(0.75rem, env(safe-area-inset-bottom));
   display: flex;
@@ -499,7 +508,7 @@ button:disabled {
   flex-wrap: nowrap;
   align-items: flex-end;
   justify-content: flex-start;
-  gap: 0.7rem;
+  gap: var(--hand-row-gap);
   width: 100%;
   margin: 0.15rem 0 0.15rem;
   box-sizing: border-box;
@@ -735,7 +744,8 @@ button:disabled {
 
 @media (min-width: 640px) {
   :root {
-    --tile-face-w: clamp(2.7rem, 6.5vw, 3.35rem);
+    /* Prefer readable faces; never above --tile-face-max / --layout-max */
+    --tile-face-w: clamp(2.55rem, 5.5vw, var(--tile-face-max));
     --mini-h: calc(var(--tile-h) * 0.64);
   }
 
@@ -806,11 +816,13 @@ button:disabled {
   main {
     padding-inline: 1rem;
     gap: 0.45rem;
+    /* Still capped by --layout-max; only shrink tiles if the felt is tight */
   }
 
   .table {
     --rail: 1.05rem;
     min-height: min(78dvh, 48rem);
+    width: 100%;
   }
 
   .table-felt {
@@ -818,7 +830,7 @@ button:disabled {
     gap: 0.65rem;
     container-type: inline-size;
     container-name: felt;
-    /* 16 faces + gaps; reserve 新牌 slot — only scale down when tight */
+    /* Fit 16+1 inside felt; stop at --tile-face-max (layout already capped) */
     --tile-face-w: clamp(
       2.35rem,
       calc((100cqi - var(--drawn-reserve)) / 16.4),
