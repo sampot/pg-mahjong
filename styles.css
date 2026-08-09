@@ -11,21 +11,14 @@
   --felt-edge: #0f3d2e;
   --danger: #b91c1c;
   --you: #0ea5e9;
-  /* Scale with viewport; width ceiling = full hand (17) + table side chrome */
-  --tile-h: clamp(3.05rem, 4.6vw, 4.65rem);
-  --tile-face-w: calc(var(--tile-h) * 0.78);
+  --hand-gap: 0.14rem;
+  /* Slot chrome beside the 17th face (gap + padding + border) */
+  --drawn-chrome: 1.85rem;
+  /* Fallback before container query applies */
+  --tile-face-w: clamp(1.9rem, 4.2vw, 3.6rem);
+  --tile-h: calc(var(--tile-face-w) * 4 / 3);
   --mini-h: calc(var(--tile-h) * 0.58);
   --mini-w: calc(var(--mini-h) * 0.75);
-  --hand-gap: 0.18rem;
-  --hand-tiles: 17;
-  --hand-span: calc(
-    var(--hand-tiles) * var(--tile-face-w) + (var(--hand-tiles) - 1) * var(--hand-gap) +
-      1.25rem
-  );
-  /* Gap + drawn-slot padding so the tsumo never sits on top of the hand */
-  --drawn-reserve: 2.25rem;
-  --table-side: clamp(0rem, 8vw, 5.5rem);
-  --layout-max: calc(var(--hand-span) + var(--drawn-reserve) + var(--table-side));
 }
 
 @media (prefers-color-scheme: dark) {
@@ -66,13 +59,16 @@ body {
 }
 
 main {
-  width: min(100%, var(--layout-max));
+  /* Use the full canvas / viewport width */
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   padding: 0.65rem 0.65rem max(0.75rem, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   min-height: 100dvh;
+  box-sizing: border-box;
 }
 
 .hero h1 {
@@ -180,6 +176,19 @@ button:disabled {
   color: #e8f5ef;
   flex: 1 1 auto;
   min-height: min(70dvh, 36rem);
+  width: 100%;
+  box-sizing: border-box;
+  /* Size tiles from the felt width so 16+1 fit without horizontal scroll */
+  container-type: inline-size;
+  container-name: felt;
+  --tile-face-w: clamp(
+    1.75rem,
+    calc((100cqi - var(--drawn-chrome)) / 17.4),
+    3.85rem
+  );
+  --tile-h: calc(var(--tile-face-w) * 4 / 3);
+  --mini-h: calc(var(--tile-h) * 0.58);
+  --mini-w: calc(var(--mini-h) * 0.75);
 }
 
 .seat {
@@ -334,30 +343,32 @@ button:disabled {
   flex-wrap: nowrap;
   align-items: flex-end;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   width: 100%;
   margin: 0.3rem 0 0.15rem;
-  /* Keep tsumo in normal flow beside the hand, never stacked over it */
-  isolation: isolate;
+  box-sizing: border-box;
 }
 
 .hand-scroll {
-  overflow-x: auto;
-  overflow-y: visible;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 0.15rem;
-  flex: 0 1 auto;
+  /* Grow with free space; never spill over the drawn slot */
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.1rem;
 }
 
 .hand {
   display: flex;
+  flex-wrap: nowrap;
   gap: var(--hand-gap);
   width: max-content;
-  min-height: calc(var(--tile-h) + 0.4rem);
-  padding: 0.15rem 0.1rem;
-  justify-content: flex-start;
+  max-width: 100%;
+  min-height: var(--tile-h);
+  padding: 0;
+  justify-content: flex-end;
+  margin-inline-start: auto;
 }
 
 .drawn-slot {
@@ -366,14 +377,13 @@ button:disabled {
   align-items: flex-end;
   justify-content: center;
   position: relative;
-  z-index: 2;
-  min-height: calc(var(--tile-h) + 0.55rem);
-  padding: 0.2rem 0.4rem 0.15rem;
-  margin-inline-start: 0.15rem;
+  z-index: 1;
+  width: calc(var(--tile-face-w) + 0.7rem);
+  min-height: calc(var(--tile-h) + 0.35rem);
+  padding: 0.15rem 0.3rem;
   border-radius: 0.55rem;
   background: color-mix(in oklab, #000 22%, transparent);
   border: 1px solid color-mix(in oklab, #38bdf8 55%, transparent);
-  box-shadow: -0.35rem 0 0.5rem color-mix(in oklab, var(--felt-edge) 55%, transparent);
 }
 
 .drawn-slot[hidden] {
@@ -412,17 +422,12 @@ button:disabled {
 
 .hand .tile {
   cursor: pointer;
-  /* Hit target ≥44px tall; width follows face so 16+1 fit the layout budget */
-  min-width: 0;
-  min-height: 44px;
-  width: auto;
-  height: auto;
-  padding: 0.15rem;
-}
-
-.hand .tile .tile-face {
+  flex: 0 0 var(--tile-face-w);
   width: var(--tile-face-w);
   height: var(--tile-h);
+  min-width: var(--tile-face-w);
+  min-height: var(--tile-h);
+  padding: 0;
 }
 
 .hand .tile.selected {
@@ -456,18 +461,14 @@ button:disabled {
 
 .drawn-slot .tile {
   cursor: pointer;
-  min-width: 44px;
-  min-height: 44px;
-  width: auto;
-  height: auto;
-  padding: 0.15rem;
-  background: transparent;
-  border: none;
-}
-
-.drawn-slot .tile .tile-face {
+  flex: 0 0 var(--tile-face-w);
   width: var(--tile-face-w);
   height: var(--tile-h);
+  min-width: var(--tile-face-w);
+  min-height: var(--tile-h);
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .drawn-tag {
@@ -632,7 +633,6 @@ button:disabled {
 @media (min-width: 900px) {
   :root {
     --mini-h: calc(var(--tile-h) * 0.7);
-    --table-side: clamp(1.5rem, 10vw, 7rem);
   }
 
   main {
@@ -658,8 +658,8 @@ button:disabled {
   }
 
   .last-tile .tile {
-    width: calc(var(--tile-face-w) * 1.12);
-    height: calc(var(--tile-h) * 1.12);
+    width: calc(var(--tile-face-w) * 1.08);
+    height: calc(var(--tile-h) * 1.08);
   }
 
   .seat-discards {
@@ -672,15 +672,7 @@ button:disabled {
     max-height: none;
   }
 
-  .hand-row {
-    width: max-content;
-    max-width: 100%;
-    margin-inline: auto;
-  }
-
   .hand-scroll {
-    /* Still clip/scroll inside the flex item — never paint over .drawn-slot */
-    overflow-x: auto;
-    flex: 0 0 auto;
+    overflow-x: hidden;
   }
 }
