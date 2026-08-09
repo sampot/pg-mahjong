@@ -401,19 +401,12 @@ function handTileButton(t, isDrawn) {
   btn.setAttribute("role", "option");
   btn.setAttribute("aria-selected", selectedId === t.id ? "true" : "false");
   const label = tileDef(t.key).label;
-  btn.title = isDrawn ? `${label}（新抽）` : label;
-  if (isDrawn) btn.setAttribute("aria-label", `${label}，新抽的牌`);
+  btn.title = label;
+  if (isDrawn) btn.setAttribute("aria-label", `${label}，剛摸進`);
   const face = document.createElement("span");
   face.className = `tile-face tile-face-${t.key}`;
   face.setAttribute("aria-hidden", "true");
   btn.appendChild(face);
-  if (isDrawn) {
-    const tag = document.createElement("span");
-    tag.className = "drawn-tag";
-    tag.textContent = "新";
-    tag.setAttribute("aria-hidden", "true");
-    btn.appendChild(tag);
-  }
   btn.addEventListener("click", () => {
     if (busy) return;
     if (
