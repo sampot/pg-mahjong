@@ -7,35 +7,56 @@
   --line: #c9d5ce;
   --accent: #0d6b4c;
   --on-accent: #ffffff;
-  --felt: #1a5c45;
-  --felt-edge: #0f3d2e;
+  --felt: #0f6b4a;
+  --felt-hi: #178a5e;
+  --felt-edge: #0a3f2d;
+  --wood-hi: #d2a86a;
+  --wood-mid: #9a6430;
+  --wood-lo: #5a3418;
+  --brass: #c9a45a;
   --danger: #b91c1c;
   --you: #0ea5e9;
   --hand-gap: 0.16rem;
-  --drawn-chrome: 1.85rem;
+  /* Comfortable face width — do not keep growing with the viewport */
+  --tile-face-max: 3rem;
+  /*
+   * Room for drawn slot + hand-row gap when shrinking-to-fit on wide felt.
+   * (Must not under-count or the 16th hand tile clips under 新牌.)
+   */
+  --drawn-reserve: calc(var(--tile-face-max) + 1.6rem);
   /*
    * Mobile-first: readable tiles; hand scrolls horizontally.
-   * Wider viewports enhance (below) to fit 16+1 without scroll.
+   * Wide felt may shrink below max so 16+1 fit — never grow past max.
    */
-  --tile-face-w: clamp(2.55rem, 12.5vw, 3.15rem);
+  --tile-face-w: clamp(2.45rem, 11.5vw, var(--tile-face-max));
   --tile-h: calc(var(--tile-face-w) * 4 / 3);
   --mini-h: calc(var(--tile-h) * 0.58);
   --mini-w: calc(var(--mini-h) * 0.75);
-  /* Selected discard candidate rises; reserve space (overflow-x clips y too) */
-  --select-lift: 0.75rem;
+  /*
+   * Selected discard candidate rises. overflow-x:auto forces y-clip, so
+   * pad the scrollport by lift + outline/shadow chrome (not just the lift).
+   */
+  --select-lift: 0.8rem;
+  --select-chrome: 0.4rem;
+  --select-headroom: calc(var(--select-lift) + var(--select-chrome));
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b1210;
-    --panel: #15201b;
-    --text: #e6eee9;
-    --muted: #97a89f;
-    --line: #2a3831;
+    --bg: #120e0a;
+    --panel: #1c1814;
+    --text: #efe6d8;
+    --muted: #a89880;
+    --line: #3a3026;
     --accent: #34d399;
     --on-accent: #042f1e;
-    --felt: #134433;
-    --felt-edge: #0a281e;
+    --felt: #0c5540;
+    --felt-hi: #127055;
+    --felt-edge: #073528;
+    --wood-hi: #b8894a;
+    --wood-mid: #7a4e24;
+    --wood-lo: #3d2410;
+    --brass: #b89548;
   }
 }
 
@@ -52,13 +73,23 @@ body {
     "PingFang TC",
     "Noto Sans TC",
     sans-serif;
+  /* Warm parlor around the table */
   background:
     radial-gradient(
-      800px 420px at 50% -8%,
-      color-mix(in oklab, var(--accent) 18%, transparent),
+      900px 480px at 50% 12%,
+      color-mix(in oklab, var(--wood-mid) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      120% 80% at 50% 100%,
+      color-mix(in oklab, #000 16%, transparent),
       transparent 55%
     ),
-    var(--bg);
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--bg) 70%, #2a1c10),
+      var(--bg)
+    );
   color: var(--text);
 }
 
@@ -100,9 +131,15 @@ main {
   align-items: center;
   gap: 0.5rem 0.85rem;
   padding: 0.55rem 0.75rem;
-  background: color-mix(in oklab, var(--panel) 92%, transparent);
-  border: 1px solid var(--line);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--panel) 94%, var(--wood-hi)),
+      color-mix(in oklab, var(--panel) 90%, transparent)
+    );
+  border: 1px solid color-mix(in oklab, var(--line) 70%, var(--wood-mid));
   border-radius: 0.85rem;
+  box-shadow: inset 0 1px 0 color-mix(in oklab, #fff 35%, transparent);
 }
 
 .meter-item {
@@ -163,20 +200,31 @@ button:disabled {
   min-height: 1.35em;
 }
 
+/* Outer mahjong table: thick wood rail, brass lip, green felt well */
 .table {
+  --rail: clamp(0.55rem, 2.2vw, 0.95rem);
+  position: relative;
+  /* Contain felt/seat z-index so they can’t paint over sticky 打牌列 */
+  z-index: 0;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.55rem;
-  border-radius: 1rem;
+  padding: var(--rail);
+  border-radius: 1.15rem;
   background:
-    radial-gradient(
-      120% 80% at 50% 40%,
-      color-mix(in oklab, var(--felt) 88%, #2a7a5c),
-      var(--felt-edge)
+    linear-gradient(
+      155deg,
+      color-mix(in oklab, var(--wood-hi) 92%, #fff) 0%,
+      var(--wood-mid) 38%,
+      var(--wood-lo) 100%
     );
-  border: 2px solid color-mix(in oklab, var(--felt-edge) 70%, #000);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, #fff 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--wood-lo) 70%, #000);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, #fff 42%, transparent),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.28),
+    0 1px 0 color-mix(in oklab, var(--wood-lo) 80%, #000),
+    0 16px 40px rgba(0, 0, 0, 0.32),
+    0 4px 10px rgba(0, 0, 0, 0.18);
   color: #e8f5ef;
   flex: 1 1 auto;
   min-height: min(62dvh, 32rem);
@@ -184,7 +232,82 @@ button:disabled {
   box-sizing: border-box;
 }
 
+.table-felt {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.55rem 0.5rem 0.6rem;
+  border-radius: 0.75rem;
+  /* Casino baize + soft grain */
+  background:
+    radial-gradient(
+      130% 90% at 50% 35%,
+      color-mix(in oklab, var(--felt-hi) 75%, #1a9a6a) 0%,
+      var(--felt) 48%,
+      var(--felt-edge) 100%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      color-mix(in oklab, #000 4%, transparent) 2px,
+      color-mix(in oklab, #000 4%, transparent) 3px
+    );
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--brass) 55%, var(--wood-lo)),
+    inset 0 0 0 4px color-mix(in oklab, var(--wood-lo) 85%, #000),
+    inset 0 3px 10px rgba(0, 0, 0, 0.35),
+    inset 0 -2px 6px color-mix(in oklab, var(--felt-hi) 35%, transparent);
+}
+
+.table-studs {
+  position: absolute;
+  inset: 0.35rem;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.table-studs span {
+  position: absolute;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 35% 30%,
+      color-mix(in oklab, var(--brass) 80%, #fff),
+      var(--brass) 45%,
+      color-mix(in oklab, var(--brass) 50%, #5a3a10)
+    );
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--wood-lo) 60%, #000),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.table-studs span:nth-child(1) {
+  top: 0;
+  left: 0;
+}
+.table-studs span:nth-child(2) {
+  top: 0;
+  right: 0;
+}
+.table-studs span:nth-child(3) {
+  bottom: 0;
+  left: 0;
+}
+.table-studs span:nth-child(4) {
+  bottom: 0;
+  right: 0;
+}
+
 .seat {
+  position: relative;
+  z-index: 1;
   min-width: 0;
 }
 
@@ -244,49 +367,88 @@ button:disabled {
 }
 
 .seat-meta {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.35rem 0.55rem;
-  font-size: clamp(0.75rem, 1.35vw, 0.92rem);
-  margin-bottom: 0.1rem;
+  gap: 0.3rem 0.45rem;
+  font-size: clamp(0.72rem, 1.3vw, 0.88rem);
+  margin-bottom: 0.15rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--wood-hi) 55%, transparent),
+      color-mix(in oklab, var(--wood-lo) 70%, #000)
+    );
+  border: 1px solid color-mix(in oklab, var(--brass) 40%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, #fff 25%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+  color: #f3e6cf;
 }
 
 .seat-name {
   font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .seat-wind {
-  opacity: 0.85;
+  opacity: 0.9;
+  color: color-mix(in oklab, var(--brass) 85%, #fff);
+  font-weight: 700;
 }
 
 .seat-count,
 .seat-score {
-  opacity: 0.8;
+  opacity: 0.85;
+}
+
+.seat-you .seat-meta {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, #3b82f6 35%, var(--wood-hi)),
+      color-mix(in oklab, #1e3a5f 70%, var(--wood-lo))
+    );
+  border-color: color-mix(in oklab, #7dd3fc 45%, var(--brass));
 }
 
 .seat-you .seat-name {
-  color: #7dd3fc;
+  color: #e0f2fe;
 }
 
+/* Central discard well — recessed wood tray on the felt */
 .center-felt {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   min-height: 100%;
-  padding: 0.5rem;
-  border-radius: 0.75rem;
-  background: color-mix(in oklab, #000 18%, transparent);
-  border: 1px dashed color-mix(in oklab, #fff 22%, transparent);
+  padding: 0.55rem 0.45rem;
+  border-radius: 0.65rem;
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in oklab, var(--wood-mid) 88%, #000),
+      color-mix(in oklab, var(--wood-lo) 90%, #1a0e06)
+    );
+  border: 1px solid color-mix(in oklab, var(--brass) 50%, var(--wood-lo));
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 color-mix(in oklab, var(--wood-hi) 35%, transparent),
+    0 0 0 2px color-mix(in oklab, var(--felt-edge) 80%, #000),
+    0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .trick-hint {
   margin: 0;
-  font-size: clamp(0.72rem, 1.2vw, 0.88rem);
-  opacity: 0.85;
+  font-size: clamp(0.7rem, 1.15vw, 0.85rem);
+  opacity: 0.9;
   text-align: center;
+  color: color-mix(in oklab, var(--brass) 70%, #f5e6c8);
+  letter-spacing: 0.06em;
 }
 
 .last-tile {
@@ -337,30 +499,36 @@ button:disabled {
   flex-wrap: nowrap;
   align-items: flex-end;
   justify-content: flex-start;
-  gap: 0.55rem;
+  gap: 0.7rem;
   width: 100%;
   margin: 0.15rem 0 0.15rem;
   box-sizing: border-box;
-  /* Room above the row for lifted tiles (parents must not clip) */
-  padding-top: calc(var(--select-lift) + 0.2rem);
+  /* Room above the row for lifted tiles + selection chrome */
+  padding-top: var(--select-headroom);
 }
 
 .hand-scroll {
-  /* Bounded scrollport; hand content may be wider (mobile) */
-  flex: 1 1 auto;
+  /*
+   * Grow not required — size to the hand, then shrink if the row is tight.
+   * Growing to fill put the clip edge flush against 新牌 and hid the 16th tile.
+   */
+  flex: 0 1 auto;
+  width: max-content;
   min-width: 0;
+  max-width: 100%;
   /*
    * Spec: if overflow-x is not visible, overflow-y can’t stay visible —
    * it becomes auto/clip and cuts off translateY. Pad the scrollport
-   * so the lift stays inside the box instead.
+   * so the lift + outline stay inside the box instead.
    */
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x;
-  padding: var(--select-lift) 0 0.2rem;
-  margin-top: calc(-1 * var(--select-lift));
+  padding: var(--select-headroom) 0.2rem 0.2rem 0;
+  margin-top: calc(-1 * var(--select-headroom));
+  scroll-padding-inline: 0.2rem;
 }
 
 .hand {
@@ -371,7 +539,7 @@ button:disabled {
   /* Must NOT max-width:100% — that kills horizontal scroll */
   width: max-content;
   min-height: var(--tile-h);
-  padding: 0 0.1rem;
+  padding: 0 0.15rem;
   justify-content: flex-start;
 }
 
@@ -381,16 +549,24 @@ button:disabled {
   align-items: flex-end;
   justify-content: center;
   position: relative;
-  z-index: 1;
+  z-index: 0;
   width: calc(var(--tile-face-w) + 0.7rem);
-  min-height: calc(var(--tile-h) + var(--select-lift));
-  padding: var(--select-lift) 0.3rem 0.15rem;
-  margin-top: calc(-1 * var(--select-lift));
+  min-height: calc(var(--tile-h) + var(--select-headroom));
+  padding: var(--select-headroom) 0.3rem 0.15rem;
+  margin-top: calc(-1 * var(--select-headroom));
   box-sizing: border-box;
   overflow: visible;
   border-radius: 0.55rem;
-  background: color-mix(in oklab, #000 22%, transparent);
-  border: 1px solid color-mix(in oklab, #38bdf8 55%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, #1e3a5f 55%, #000),
+      color-mix(in oklab, #0f172a 80%, #000)
+    );
+  border: 1px solid color-mix(in oklab, #7dd3fc 50%, var(--brass));
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.4),
+    0 0 0 1px color-mix(in oklab, var(--felt-edge) 70%, #000);
 }
 
 .drawn-slot[hidden] {
@@ -446,8 +622,8 @@ button:disabled {
 .drawn-slot .tile.selected {
   transform: translateY(calc(-1 * var(--select-lift)));
   z-index: 2;
-  outline: 2px solid #fbbf24;
-  outline-offset: 1px;
+  /* box-shadow ring only — outline can still paint outside the padded scrollport */
+  outline: none;
 }
 
 .hand .tile.selected .tile-face,
@@ -473,9 +649,10 @@ button:disabled {
   display: inline-flex;
   gap: 0.08rem;
   margin-right: 0.25rem;
-  padding: 0.1rem;
-  border-radius: 0.25rem;
-  background: rgba(0, 0, 0, 0.15);
+  padding: 0.12rem 0.15rem;
+  border-radius: 0.3rem;
+  background: color-mix(in oklab, #000 22%, transparent);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .action-bar {
@@ -484,9 +661,10 @@ button:disabled {
   gap: 0.45rem;
   position: sticky;
   bottom: 0;
+  z-index: 10;
   padding: 0.45rem 0.15rem;
-  background: color-mix(in oklab, var(--bg) 88%, transparent);
-  backdrop-filter: blur(6px);
+  background: color-mix(in oklab, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .chi-picker {
@@ -585,7 +763,12 @@ button:disabled {
 
   .table {
     min-height: min(74dvh, 42rem);
-    padding: 0.75rem 0.85rem;
+    --rail: clamp(0.7rem, 2vw, 1.05rem);
+  }
+
+  .table-felt {
+    padding: 0.7rem 0.75rem 0.8rem;
+    gap: 0.55rem;
   }
 
   .seat-mid {
@@ -614,7 +797,7 @@ button:disabled {
   }
 }
 
-/* Wide enough: enhance — scale tiles to the felt so 16+1 fit; scroll remains as fallback */
+/* Wide enough: shrink-to-fit 16+1 if needed; never grow past --tile-face-max */
 @media (min-width: 960px) {
   :root {
     --mini-h: calc(var(--tile-h) * 0.7);
@@ -626,15 +809,20 @@ button:disabled {
   }
 
   .table {
-    padding: 0.9rem 1.1rem;
-    gap: 0.65rem;
+    --rail: 1.05rem;
     min-height: min(78dvh, 48rem);
+  }
+
+  .table-felt {
+    padding: 0.85rem 1rem 0.95rem;
+    gap: 0.65rem;
     container-type: inline-size;
     container-name: felt;
+    /* 16 faces + gaps; reserve 新牌 slot — only scale down when tight */
     --tile-face-w: clamp(
       2.35rem,
-      calc((100cqi - var(--drawn-chrome)) / 17.4),
-      3.85rem
+      calc((100cqi - var(--drawn-reserve)) / 16.4),
+      var(--tile-face-max)
     );
     --tile-h: calc(var(--tile-face-w) * 4 / 3);
     --mini-h: calc(var(--tile-h) * 0.7);

@@ -1,6 +1,6 @@
 /**
  * Taiwan mahjong tile keys, labels, and asset paths.
- * Base faces: FluffyStuff riichi tiles (CC0). Flowers: project originals.
+ * Base faces: FluffyStuff riichi tiles (CC0). Flowers: AI-generated (Gemini), sliced.
  */
 
 /** @typedef {'man'|'pin'|'sou'|'wind'|'dragon'|'flower'} Suit */
