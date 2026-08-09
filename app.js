@@ -28,6 +28,7 @@ const el = {
   dealer: /** @type {HTMLElement} */ (document.getElementById("dealer-label")),
   wall: /** @type {HTMLElement} */ (document.getElementById("wall-count")),
   hand: /** @type {HTMLElement} */ (document.getElementById("hand")),
+  drawnSlot: /** @type {HTMLElement} */ (document.getElementById("drawn-slot")),
   lastTile: /** @type {HTMLElement} */ (document.getElementById("last-tile")),
   lastHint: /** @type {HTMLElement} */ (document.getElementById("last-tile-hint")),
   actionBar: /** @type {HTMLElement} */ (document.getElementById("action-bar")),
@@ -351,7 +352,11 @@ function render() {
           ? ""
           : seatWindLabel(state, s);
     }
-    if (countEl) countEl.textContent = `${state.seats[s].hand.length}張`;
+    if (countEl) {
+      const extra =
+        s === state.turn && state.drawnTile && state.mustDiscard ? 1 : 0;
+      countEl.textContent = `${state.seats[s].hand.length + extra}張`;
+    }
     if (scoreEl) scoreEl.textContent = `${state.scores[s]}分`;
 
     renderMelds(s);
@@ -366,17 +371,19 @@ function render() {
 
 function renderHand() {
   el.hand.replaceChildren();
+  el.drawnSlot.replaceChildren();
   const hand = state.seats[PLAYER].hand;
-  const drawnId =
-    state.turn === PLAYER && state.mustDiscard ? state.drawnTileId : null;
-  const drawn = drawnId != null ? hand.find((t) => t.id === drawnId) : null;
-  const rest = drawn ? hand.filter((t) => t.id !== drawn.id) : hand;
-
-  for (const t of rest) {
+  for (const t of hand) {
     el.hand.appendChild(handTileButton(t, false));
   }
+
+  const drawn =
+    state.turn === PLAYER && state.mustDiscard ? state.drawnTile : null;
   if (drawn) {
-    el.hand.appendChild(handTileButton(drawn, true));
+    el.drawnSlot.hidden = false;
+    el.drawnSlot.appendChild(handTileButton(drawn, true));
+  } else {
+    el.drawnSlot.hidden = true;
   }
 }
 

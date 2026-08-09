@@ -327,23 +327,47 @@ button:disabled {
   max-height: calc(var(--mini-h) * 2.2);
 }
 
+.hand-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+  width: 100%;
+  margin: 0.3rem 0 0.15rem;
+}
+
 .hand-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  margin: 0.3rem 0 0.15rem;
   padding-bottom: 0.15rem;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .hand {
   display: flex;
   gap: var(--hand-gap);
   width: max-content;
-  min-width: min(100%, var(--hand-span));
   min-height: calc(var(--tile-h) + 0.4rem);
   padding: 0.15rem 0.1rem;
   margin-inline: auto;
   justify-content: center;
+}
+
+.drawn-slot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: calc(var(--tile-h) + 0.55rem);
+  padding: 0.2rem 0.35rem 0.15rem;
+  border-radius: 0.55rem;
+  background: color-mix(in oklab, #000 22%, transparent);
+  border: 1px solid color-mix(in oklab, #38bdf8 55%, transparent);
+}
+
+.drawn-slot[hidden] {
+  display: none;
 }
 
 .tile {
@@ -400,21 +424,39 @@ button:disabled {
   box-shadow: 0 0 0 2px #fbbf24;
 }
 
-.hand .tile.drawn {
-  margin-left: 0.55rem;
+.hand .tile.drawn,
+.drawn-slot .tile.drawn {
   position: relative;
 }
 
-.hand .tile.drawn .tile-face {
+.hand .tile.drawn .tile-face,
+.drawn-slot .tile.drawn .tile-face {
   box-shadow:
     0 0 0 2px #38bdf8,
     0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
-.hand .tile.drawn.selected .tile-face {
+.hand .tile.drawn.selected .tile-face,
+.drawn-slot .tile.drawn.selected .tile-face {
   box-shadow:
     0 0 0 2px #fbbf24,
     0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.drawn-slot .tile {
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  width: auto;
+  height: auto;
+  padding: 0.15rem;
+  background: transparent;
+  border: none;
+}
+
+.drawn-slot .tile .tile-face {
+  width: var(--tile-face-w);
+  height: var(--tile-h);
 }
 
 .drawn-tag {
@@ -622,5 +664,9 @@ button:disabled {
   /* Wide enough for a full hand: prefer no sideways scroll */
   .hand-scroll {
     overflow-x: visible;
+  }
+
+  .hand-row {
+    justify-content: center;
   }
 }

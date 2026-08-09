@@ -78,10 +78,11 @@ function chooseDiscardTurn(state, seat) {
   }
 
   const hand = state.seats[seat].hand;
-  let best = hand[0];
+  const pool = state.drawnTile ? [...hand, state.drawnTile] : hand;
+  let best = pool[0];
   let bestScore = -1e9;
-  for (const t of hand) {
-    const score = discardScore(hand, t);
+  for (const t of pool) {
+    const score = discardScore(pool, t);
     if (score > bestScore) {
       bestScore = score;
       best = t;

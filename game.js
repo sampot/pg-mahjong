@@ -31,7 +31,7 @@ import {
  *   roundWind: number,
  *   turn: number,
  *   mustDiscard: boolean,
- *   drawnTileId: number | null,
+ *   drawnTile: Tile | null,
  *   lastDiscard: { tile: Tile, from: number } | null,
  *   claim: null | {
  *     tile: Tile,
@@ -70,7 +70,7 @@ export function createInitialState() {
     roundWind: 0,
     turn: 0,
     mustDiscard: false,
-    drawnTileId: null,
+    drawnTile: null,
     lastDiscard: null,
     claim: null,
     scores: [0, 0, 0, 0],
@@ -104,6 +104,20 @@ export function seatWind(state, seat) {
  */
 export function seatWindLabel(state, seat) {
   return WIND_LABELS[seatWind(state, seat)];
+}
+
+/**
+ * Concealed tiles for a seat (hand + separate drawn tile when it is their turn).
+ * @param {GameState} state
+ * @param {number} seat
+ * @returns {Tile[]}
+ */
+export function concealedTiles(state, seat) {
+  const hand = state.seats[seat].hand;
+  if (seat === state.turn && state.drawnTile) {
+    return [...hand, state.drawnTile];
+  }
+  return hand;
 }
 
 /**
@@ -157,7 +171,7 @@ function deal(state) {
     seats,
     turn: state.dealer,
     mustDiscard: false,
-    drawnTileId: null,
+    drawnTile: null,
     lastDiscard: null,
     claim: null,
     result: null,
@@ -234,25 +248,15 @@ function drawForTurn(state) {
     return endDraw(state);
   }
   let s = { ...state };
-  let tile = s.wall.pop();
-  if (!tile) return endDraw(s);
-  /** @type {number | null} */
-  let drawnTileId = tile.id;
+  /** @type {Tile | null} */
+  let drawn = s.wall.pop() || null;
+  if (!drawn) return endDraw(s);
 
-  const seats = s.seats.map((seat, i) =>
-    i === s.turn ? { ...seat, hand: sortTiles([...seat.hand, tile]) } : seat,
-  );
-  s = { ...s, seats, mustDiscard: true, wall: s.wall, drawnTileId };
-
-  // flower replacement on draw
-  while (true) {
-    const hand = s.seats[s.turn].hand;
-    const flower = hand.find((t) => isFlower(t.key));
-    if (!flower) break;
-    if (!s.wall.length) break;
-    const wall = [...s.wall];
-    const newHand = hand.filter((t) => t.id !== flower.id);
-    const flowers = [...s.seats[s.turn].flowers, flower];
+  // Keep drawn tile out of the sorted hand; only flower-replace the draw.
+  const flowers = [...s.seats[s.turn].flowers];
+  const wall = [...s.wall];
+  while (drawn && isFlower(drawn.key) && wall.length) {
+    flowers.push(drawn);
     let repl = null;
     while (wall.length) {
       const t = wall.pop();
@@ -264,24 +268,19 @@ function drawForTurn(state) {
       repl = t;
       break;
     }
-    if (repl) drawnTileId = repl.id;
-    else if (flower.id === drawnTileId) drawnTileId = null;
-    s = {
-      ...s,
-      wall,
-      drawnTileId,
-      seats: s.seats.map((seat, i) =>
-        i === s.turn
-          ? {
-              ...seat,
-              hand: sortTiles(repl ? [...newHand, repl] : newHand),
-              flowers,
-            }
-          : seat,
-      ),
-    };
+    drawn = repl;
   }
-  return s;
+
+  const seats = s.seats.map((seat, i) =>
+    i === s.turn ? { ...seat, flowers } : seat,
+  );
+  return {
+    ...s,
+    wall,
+    seats,
+    mustDiscard: true,
+    drawnTile: drawn,
+  };
 }
 
 /**
@@ -292,10 +291,24 @@ function drawForTurn(state) {
 function discard(state, seat, tileId) {
   if (state.phase !== "playing") return state;
   if (state.turn !== seat || !state.mustDiscard) return state;
-  const tile = state.seats[seat].hand.find((t) => t.id === tileId);
+
+  const drawn = state.drawnTile;
+  const fromDrawn = drawn && drawn.id === tileId;
+  const fromHand = state.seats[seat].hand.find((t) => t.id === tileId);
+  const tile = fromDrawn ? drawn : fromHand;
   if (!tile || isFlower(tile.key)) return state;
 
-  const hand = state.seats[seat].hand.filter((t) => t.id !== tileId);
+  /** @type {Tile[]} */
+  let hand;
+  if (fromDrawn) {
+    // Discard the tsumo tile; sorted hand stays as-is.
+    hand = state.seats[seat].hand;
+  } else {
+    // Discard from hand; fold the drawn tile into the hand.
+    hand = state.seats[seat].hand.filter((t) => t.id !== tileId);
+    if (drawn) hand = sortTiles([...hand, drawn]);
+  }
+
   const seats = state.seats.map((s, i) =>
     i === seat
       ? { ...s, hand: sortTiles(hand), discards: [...s.discards, tile] }
@@ -307,7 +320,7 @@ function discard(state, seat, tileId) {
     ...state,
     seats,
     mustDiscard: false,
-    drawnTileId: null,
+    drawnTile: null,
     lastDiscard: { tile, from: seat },
     phase: "claim",
     claim: {
@@ -477,7 +490,7 @@ function takePong(state, seat) {
     lastDiscard: null,
     turn: seat,
     mustDiscard: true,
-    drawnTileId: null,
+    drawnTile: null,
     message: `${seatWindLabel(state, seat)}家碰`,
   };
 }
@@ -558,7 +571,7 @@ function takeChi(state, seat, chiTiles) {
     lastDiscard: null,
     turn: seat,
     mustDiscard: true,
-    drawnTileId: null,
+    drawnTile: null,
     message: `${seatWindLabel(state, seat)}家吃`,
   };
 }
@@ -572,20 +585,29 @@ function anKong(state, seat, key) {
   if (state.phase !== "playing" || state.turn !== seat || !state.mustDiscard) {
     return state;
   }
-  const hand = [...state.seats[seat].hand];
-  const used = takeN(hand, key, 4);
+  const pool = [...concealedTiles(state, seat)];
+  const used = takeN(pool, key, 4);
   if (!used) return state;
+  const usedIds = new Set(used.map((t) => t.id));
+  const hand = state.seats[seat].hand.filter((t) => !usedIds.has(t.id));
+  const drawnKept =
+    state.drawnTile && !usedIds.has(state.drawnTile.id)
+      ? state.drawnTile
+      : null;
+  // Any leftover drawn tile folds into hand before the kong supplement draw.
+  const merged = drawnKept ? sortTiles([...hand, drawnKept]) : sortTiles(hand);
   const meld = {
     type: /** @type {const} */ ("kong"),
     tiles: used,
     concealed: true,
   };
   const seats = state.seats.map((s, i) =>
-    i === seat ? { ...s, hand: sortTiles(hand), melds: [...s.melds, meld] } : s,
+    i === seat ? { ...s, hand: merged, melds: [...s.melds, meld] } : s,
   );
   let next = {
     ...state,
     seats,
+    drawnTile: null,
     mustDiscard: false,
     message: `${seatWindLabel(state, seat)}家暗槓，補牌`,
   };
@@ -603,13 +625,22 @@ function jiaKong(state, seat, tileId) {
   if (state.phase !== "playing" || state.turn !== seat || !state.mustDiscard) {
     return state;
   }
-  const tile = state.seats[seat].hand.find((t) => t.id === tileId);
+  const fromDrawn = state.drawnTile?.id === tileId;
+  const tile = fromDrawn
+    ? state.drawnTile
+    : state.seats[seat].hand.find((t) => t.id === tileId);
   if (!tile) return state;
   const meldIdx = state.seats[seat].melds.findIndex(
     (m) => m.type === "pong" && m.tiles[0].key === tile.key,
   );
   if (meldIdx < 0) return state;
-  const hand = state.seats[seat].hand.filter((t) => t.id !== tileId);
+  let hand = fromDrawn
+    ? [...state.seats[seat].hand]
+    : state.seats[seat].hand.filter((t) => t.id !== tileId);
+  // Fold leftover drawn tile into hand before the supplement draw.
+  if (!fromDrawn && state.drawnTile) {
+    hand = sortTiles([...hand, state.drawnTile]);
+  }
   const melds = state.seats[seat].melds.map((m, i) =>
     i === meldIdx
       ? { type: /** @type {const} */ ("kong"), tiles: [...m.tiles, tile], concealed: false }
@@ -621,6 +652,7 @@ function jiaKong(state, seat, tileId) {
   let next = {
     ...state,
     seats,
+    drawnTile: null,
     mustDiscard: false,
     message: `${seatWindLabel(state, seat)}家加槓，補牌`,
   };
@@ -639,7 +671,7 @@ export function declareWin(state, winner, from, selfDraw) {
     ? null
     : state.claim?.tile || state.lastDiscard?.tile || null;
   const hand = selfDraw
-    ? state.seats[winner].hand
+    ? concealedTiles(state, winner)
     : sortTiles([...state.seats[winner].hand, winTile].filter(Boolean));
 
   const scored = scoreWin(state, winner, hand, selfDraw);
@@ -695,6 +727,7 @@ export function declareWin(state, winner, from, selfDraw) {
     phase: "ended",
     claim: null,
     mustDiscard: false,
+    drawnTile: null,
     scores,
     dealer,
     dealerStreak,
@@ -726,6 +759,7 @@ function endDraw(state) {
     phase: "ended",
     result: { kind: "draw" },
     mustDiscard: false,
+    drawnTile: null,
     claim: null,
     message: "流局（牌山用盡）",
     dealer: (state.dealer + 1) % 4,
@@ -842,7 +876,7 @@ export function canHuOnDiscard(state, seat) {
  */
 export function canHuSelf(state, seat) {
   return Boolean(
-    findWinningPartition(state.seats[seat].melds, state.seats[seat].hand),
+    findWinningPartition(state.seats[seat].melds, concealedTiles(state, seat)),
   );
 }
 
@@ -854,7 +888,7 @@ export function canHuSelf(state, seat) {
 export function anKongKeys(state, seat) {
   /** @type {string[]} */
   const keys = [];
-  const counts = countMap(state.seats[seat].hand);
+  const counts = countMap(concealedTiles(state, seat));
   for (const [k, n] of counts) {
     if (n >= 4 && !isFlower(k)) keys.push(k);
   }
@@ -869,7 +903,7 @@ export function anKongKeys(state, seat) {
 export function jiaKongTileIds(state, seat) {
   /** @type {number[]} */
   const ids = [];
-  for (const t of state.seats[seat].hand) {
+  for (const t of concealedTiles(state, seat)) {
     if (
       state.seats[seat].melds.some(
         (m) => m.type === "pong" && m.tiles[0].key === t.key,
