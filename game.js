@@ -31,6 +31,7 @@ import {
  *   roundWind: number,
  *   turn: number,
  *   mustDiscard: boolean,
+ *   drawnTileId: number | null,
  *   lastDiscard: { tile: Tile, from: number } | null,
  *   claim: null | {
  *     tile: Tile,
@@ -69,6 +70,7 @@ export function createInitialState() {
     roundWind: 0,
     turn: 0,
     mustDiscard: false,
+    drawnTileId: null,
     lastDiscard: null,
     claim: null,
     scores: [0, 0, 0, 0],
@@ -155,6 +157,7 @@ function deal(state) {
     seats,
     turn: state.dealer,
     mustDiscard: false,
+    drawnTileId: null,
     lastDiscard: null,
     claim: null,
     result: null,
@@ -233,11 +236,13 @@ function drawForTurn(state) {
   let s = { ...state };
   let tile = s.wall.pop();
   if (!tile) return endDraw(s);
+  /** @type {number | null} */
+  let drawnTileId = tile.id;
 
   const seats = s.seats.map((seat, i) =>
     i === s.turn ? { ...seat, hand: sortTiles([...seat.hand, tile]) } : seat,
   );
-  s = { ...s, seats, mustDiscard: true, wall: s.wall };
+  s = { ...s, seats, mustDiscard: true, wall: s.wall, drawnTileId };
 
   // flower replacement on draw
   while (true) {
@@ -259,9 +264,12 @@ function drawForTurn(state) {
       repl = t;
       break;
     }
+    if (repl) drawnTileId = repl.id;
+    else if (flower.id === drawnTileId) drawnTileId = null;
     s = {
       ...s,
       wall,
+      drawnTileId,
       seats: s.seats.map((seat, i) =>
         i === s.turn
           ? {
@@ -299,6 +307,7 @@ function discard(state, seat, tileId) {
     ...state,
     seats,
     mustDiscard: false,
+    drawnTileId: null,
     lastDiscard: { tile, from: seat },
     phase: "claim",
     claim: {
@@ -468,6 +477,7 @@ function takePong(state, seat) {
     lastDiscard: null,
     turn: seat,
     mustDiscard: true,
+    drawnTileId: null,
     message: `${seatWindLabel(state, seat)}家碰`,
   };
 }
@@ -548,6 +558,7 @@ function takeChi(state, seat, chiTiles) {
     lastDiscard: null,
     turn: seat,
     mustDiscard: true,
+    drawnTileId: null,
     message: `${seatWindLabel(state, seat)}家吃`,
   };
 }

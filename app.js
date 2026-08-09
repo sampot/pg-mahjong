@@ -367,32 +367,60 @@ function render() {
 function renderHand() {
   el.hand.replaceChildren();
   const hand = state.seats[PLAYER].hand;
-  for (const t of hand) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "tile" + (selectedId === t.id ? " selected" : "");
-    btn.setAttribute("role", "option");
-    btn.setAttribute("aria-selected", selectedId === t.id ? "true" : "false");
-    btn.title = tileDef(t.key).label;
-    const face = document.createElement("span");
-    face.className = `tile-face tile-face-${t.key}`;
-    face.setAttribute("aria-hidden", "true");
-    btn.appendChild(face);
-    btn.addEventListener("click", () => {
-      if (busy) return;
-      if (
-        state.phase !== "playing" ||
-        state.turn !== PLAYER ||
-        !state.mustDiscard
-      ) {
-        return;
-      }
-      selectedId = selectedId === t.id ? null : t.id;
-      audio.soft();
-      render();
-    });
-    el.hand.appendChild(btn);
+  const drawnId =
+    state.turn === PLAYER && state.mustDiscard ? state.drawnTileId : null;
+  const drawn = drawnId != null ? hand.find((t) => t.id === drawnId) : null;
+  const rest = drawn ? hand.filter((t) => t.id !== drawn.id) : hand;
+
+  for (const t of rest) {
+    el.hand.appendChild(handTileButton(t, false));
   }
+  if (drawn) {
+    el.hand.appendChild(handTileButton(drawn, true));
+  }
+}
+
+/**
+ * @param {import('./game.js').Tile} t
+ * @param {boolean} isDrawn
+ */
+function handTileButton(t, isDrawn) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className =
+    "tile" +
+    (selectedId === t.id ? " selected" : "") +
+    (isDrawn ? " drawn" : "");
+  btn.setAttribute("role", "option");
+  btn.setAttribute("aria-selected", selectedId === t.id ? "true" : "false");
+  const label = tileDef(t.key).label;
+  btn.title = isDrawn ? `${label}（新抽）` : label;
+  if (isDrawn) btn.setAttribute("aria-label", `${label}，新抽的牌`);
+  const face = document.createElement("span");
+  face.className = `tile-face tile-face-${t.key}`;
+  face.setAttribute("aria-hidden", "true");
+  btn.appendChild(face);
+  if (isDrawn) {
+    const tag = document.createElement("span");
+    tag.className = "drawn-tag";
+    tag.textContent = "新";
+    tag.setAttribute("aria-hidden", "true");
+    btn.appendChild(tag);
+  }
+  btn.addEventListener("click", () => {
+    if (busy) return;
+    if (
+      state.phase !== "playing" ||
+      state.turn !== PLAYER ||
+      !state.mustDiscard
+    ) {
+      return;
+    }
+    selectedId = selectedId === t.id ? null : t.id;
+    audio.soft();
+    render();
+  });
+  return btn;
 }
 
 /**
