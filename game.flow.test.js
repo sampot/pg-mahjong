@@ -66,6 +66,30 @@ describe("waitingKeys", () => {
   });
 });
 
+describe("win result presentation data", () => {
+  it("keeps the complete winning tiles for the result panel", () => {
+    let s = createInitialState();
+    s.phase = "playing";
+    s.turn = 0;
+    s.mustDiscard = true;
+    s.seats[0].hand = sortTiles([
+      T("man1"), T("man2"), T("man3"),
+      T("man4"), T("man5"), T("man6"),
+      T("pin1"), T("pin2"), T("pin3"),
+      T("pin4"), T("pin5"), T("pin6"),
+      T("sou1"), T("sou2"), T("sou3"),
+      T("haku"),
+    ]);
+    s.drawnTile = T("haku");
+
+    s = applyAction(s, { type: "hu_self", seat: 0 });
+
+    expect(s.result?.kind).toBe("win");
+    expect(s.result?.tiles).toHaveLength(17);
+    expect(s.result?.tiles.at(-1)?.key).toBe("haku");
+  });
+});
+
 describe("payments", () => {
   it("tsumo charges three seats", () => {
     const state = createInitialState({ basePoints: 1, taiValue: 1 });

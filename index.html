@@ -9,7 +9,7 @@
       content="台灣麻將：十六張常見可配家規、四人人機、補花吃碰槓胡。純前端 Playgrounds SAM。"
     />
     <title>台灣麻將</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=3" />
     <link rel="stylesheet" href="./tiles.css" />
   </head>
   <body>
@@ -32,21 +32,28 @@
           <span class="label">牌山</span>
           <strong id="wall-count">—</strong>
         </div>
-        <div class="meter-actions">
-          <button type="button" id="btn-mute" class="secondary" aria-pressed="true">
-            音效開
-          </button>
+        <div class="meter-item meter-rule">
+          <span class="label">起胡</span>
+          <strong id="min-tai-label">0 台</strong>
         </div>
       </section>
 
       <div class="controls">
         <button type="button" id="btn-deal">開局</button>
-        <button type="button" id="btn-rules" class="secondary">家規</button>
         <button type="button" id="btn-auto" class="secondary" aria-pressed="false">
           託管
         </button>
-        <button type="button" id="btn-about" class="secondary">說明</button>
-        <button type="button" id="btn-reset" class="secondary">重來</button>
+        <details id="more-menu" class="more-menu">
+          <summary>更多</summary>
+          <div class="more-menu-popover">
+            <button type="button" id="btn-rules" class="secondary">家規</button>
+            <button type="button" id="btn-about" class="secondary">說明</button>
+            <button type="button" id="btn-mute" class="secondary" aria-pressed="true">
+              音效開
+            </button>
+            <button type="button" id="btn-reset" class="secondary">重來</button>
+          </div>
+        </details>
       </div>
 
       <p id="status" class="status" role="status">點「開局」發牌。</p>
@@ -108,6 +115,7 @@
               <span class="seat-wind" id="wind-0"></span>
               <span class="seat-count" id="count-0">0</span>
               <span class="seat-score" id="score-0">0</span>
+              <span id="guo-shui-badge" class="rule-badge" hidden>過水中</span>
               <span id="auto-badge" class="auto-badge" hidden>託管中</span>
             </div>
             <div class="seat-melds" id="melds-0"></div>
@@ -130,12 +138,13 @@
       </section>
 
       <div id="action-bar" class="action-bar" hidden>
+        <p id="action-prompt" class="action-prompt">請選擇動作</p>
         <button type="button" id="btn-hu" class="accent" hidden>胡</button>
         <button type="button" id="btn-kong" hidden>槓</button>
         <button type="button" id="btn-pong" hidden>碰</button>
         <button type="button" id="btn-chi" hidden>吃</button>
         <button type="button" id="btn-pass" class="secondary" hidden>略過</button>
-        <button type="button" id="btn-discard" class="accent" hidden>打牌</button>
+        <button type="button" id="btn-discard" class="accent" hidden>打出</button>
         <button type="button" id="btn-ankong" hidden>暗槓</button>
         <button type="button" id="btn-jiakong" hidden>加槓</button>
       </div>
@@ -148,10 +157,11 @@
       <div class="panel-card" role="dialog" aria-labelledby="result-title">
         <h2 id="result-title">結算</h2>
         <p id="result-body"></p>
+        <div id="result-hand" class="result-hand" aria-label="胡牌牌型"></div>
         <ul id="result-tai" class="tai-list"></ul>
         <ul id="result-pay" class="tai-list"></ul>
         <div class="panel-actions">
-          <button type="button" id="btn-result-ok">繼續</button>
+          <button type="button" id="btn-result-ok">下一局</button>
         </div>
       </div>
     </div>
@@ -253,6 +263,6 @@
       </div>
     </div>
 
-    <script type="module" src="./app.js?v=2"></script>
+    <script type="module" src="./app.js?v=3"></script>
   </body>
 </html>

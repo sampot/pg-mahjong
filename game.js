@@ -64,6 +64,7 @@ import { replaceAllFlowersPure } from "./flowers.js";
  *   details: string[],
  *   points: number,
  *   payments: number[],
+ *   tiles: Tile[],
  * }} WinResult
  */
 
@@ -878,6 +879,7 @@ export function declareWin(state, winner, from, selfDraw, meta = {}) {
     details: scored.details,
     points: scored.points,
     payments,
+    tiles: hand,
   };
 
   return {

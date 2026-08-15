@@ -15,6 +15,7 @@ import {
 } from "./game.js";
 import { SEAT_NAMES, WIND_LABELS, tileDef } from "./tiles.js";
 import { DEFAULT_RULESET } from "./ruleset.js";
+import { nextTileTap, shouldCompactChrome } from "./ux.js";
 
 const audio = new MahjongAudio();
 /** @type {import('./game.js').GameState} */
@@ -34,6 +35,7 @@ const el = {
   roundWind: /** @type {HTMLElement} */ (document.getElementById("round-wind")),
   dealer: /** @type {HTMLElement} */ (document.getElementById("dealer-label")),
   wall: /** @type {HTMLElement} */ (document.getElementById("wall-count")),
+  minTai: /** @type {HTMLElement} */ (document.getElementById("min-tai-label")),
   hand: /** @type {HTMLElement} */ (document.getElementById("hand")),
   drawnSlot: /** @type {HTMLElement} */ (document.getElementById("drawn-slot")),
   lastTile: /** @type {HTMLElement} */ (document.getElementById("last-tile")),
@@ -49,8 +51,11 @@ const el = {
   resultBody: /** @type {HTMLElement} */ (document.getElementById("result-body")),
   resultTai: /** @type {HTMLElement} */ (document.getElementById("result-tai")),
   resultPay: /** @type {HTMLElement} */ (document.getElementById("result-pay")),
+  resultHand: /** @type {HTMLElement} */ (document.getElementById("result-hand")),
   autoBadge: /** @type {HTMLElement} */ (document.getElementById("auto-badge")),
+  guoShuiBadge: /** @type {HTMLElement} */ (document.getElementById("guo-shui-badge")),
   waitHint: /** @type {HTMLElement} */ (document.getElementById("wait-hint")),
+  actionPrompt: /** @type {HTMLElement} */ (document.getElementById("action-prompt")),
   btnMute: /** @type {HTMLButtonElement} */ (document.getElementById("btn-mute")),
   btnDeal: /** @type {HTMLButtonElement} */ (document.getElementById("btn-deal")),
   btnReset: /** @type {HTMLButtonElement} */ (document.getElementById("btn-reset")),
@@ -84,6 +89,7 @@ document.addEventListener(
 );
 
 el.btnMute.addEventListener("click", () => {
+  closeMoreMenu();
   const on = el.btnMute.getAttribute("aria-pressed") !== "true";
   el.btnMute.setAttribute("aria-pressed", on ? "true" : "false");
   el.btnMute.textContent = on ? "音效開" : "音效關";
@@ -112,11 +118,13 @@ el.btnAuto.addEventListener("click", () => {
 });
 
 el.btnRules.addEventListener("click", () => {
+  closeMoreMenu();
   fillRulesForm();
   el.panelRules.hidden = false;
 });
 
 el.btnAbout.addEventListener("click", () => {
+  closeMoreMenu();
   el.panelAbout.hidden = false;
 });
 
@@ -175,6 +183,7 @@ function fillRulesForm() {
 }
 
 el.btnReset.addEventListener("click", () => {
+  closeMoreMenu();
   if (state.phase === "idle") {
     const ruleset = state.ruleset;
     const scores = state.scores;
@@ -234,15 +243,22 @@ el.btnDiscard.addEventListener("click", () => {
     sfx(() => audio.deny());
     return;
   }
-  dispatch({ type: "discard", seat: PLAYER, tileId: selectedId });
+  discardTile(selectedId);
+});
+
+function discardTile(tileId) {
+  const previousSelection = selectedId;
   selectedId = null;
+  dispatch({ type: "discard", seat: PLAYER, tileId });
   if (state.lastError) {
+    selectedId = previousSelection;
     flash(state.lastError);
     sfx(() => audio.deny());
   } else {
     sfx(() => audio.discard());
   }
-});
+  render();
+}
 
 el.btnHu.addEventListener("click", () => {
   if (autoPlayPlayer) return;
@@ -316,6 +332,13 @@ el.btnJiakong.addEventListener("click", () => {
 function syncAutoButton() {
   el.btnAuto.setAttribute("aria-pressed", autoPlayPlayer ? "true" : "false");
   el.btnAuto.textContent = autoPlayPlayer ? "取消託管" : "託管";
+}
+
+function closeMoreMenu() {
+  const menu = /** @type {HTMLDetailsElement | null} */ (
+    document.getElementById("more-menu")
+  );
+  if (menu) menu.open = false;
 }
 
 /**
@@ -539,6 +562,7 @@ function showResult() {
   el.panelResult.hidden = false;
   el.resultTai.replaceChildren();
   el.resultPay.replaceChildren();
+  el.resultHand.replaceChildren();
   if (r.kind === "draw") {
     el.resultTitle.textContent = "流局";
     el.resultBody.textContent = state.ruleset.keepDealerOnDraw
@@ -552,6 +576,15 @@ function showResult() {
     ? "自摸"
     : `點炮（${SEAT_NAMES[r.from ?? 0]}）`;
   el.resultBody.textContent = `${how} · ${r.tai} 台 · 基準 ${r.points} 分`;
+  for (const meld of state.seats[r.winner].melds) {
+    const group = document.createElement("span");
+    group.className = "meld-group";
+    for (const tile of meld.tiles) group.appendChild(tileImg(tile.key, true));
+    el.resultHand.appendChild(group);
+  }
+  for (const tile of r.tiles) {
+    el.resultHand.appendChild(tileImg(tile.key, true));
+  }
   for (const line of r.details) {
     const li = document.createElement("li");
     li.textContent = line;
@@ -561,12 +594,14 @@ function showResult() {
     const pay = r.payments[i];
     if (!pay) continue;
     const li = document.createElement("li");
+    li.className = pay > 0 ? "payment-positive" : "payment-negative";
     li.textContent = `${SEAT_NAMES[i]} ${pay > 0 ? "+" : ""}${pay}`;
     el.resultPay.appendChild(li);
   }
 }
 
 function render() {
+  document.body.classList.toggle("game-active", shouldCompactChrome(state.phase));
   el.status.textContent = state.message;
   el.roundWind.textContent = WIND_LABELS[state.roundWind];
   el.dealer.textContent =
@@ -574,10 +609,17 @@ function render() {
       ? SEAT_NAMES[state.dealer]
       : `${SEAT_NAMES[state.dealer]}（連${state.dealerStreak}）`;
   el.wall.textContent = String(liveWallCount(state));
+  el.minTai.textContent = `${state.ruleset.minTai} 台`;
   el.btnDeal.disabled = state.phase !== "idle";
   el.autoBadge.hidden = !autoPlayPlayer;
+  el.guoShuiBadge.hidden = !state.guoShui[PLAYER];
 
   for (let s = 0; s < 4; s++) {
+    const seatEl = document.querySelector(`[data-seat="${s}"]`);
+    seatEl?.classList.toggle(
+      "active-turn",
+      state.phase === "playing" && state.turn === s,
+    );
     const nameEl = document.getElementById(`name-${s}`);
     const windEl = document.getElementById(`wind-${s}`);
     const countEl = document.getElementById(`count-${s}`);
@@ -676,7 +718,12 @@ function handTileButton(t, isDrawn) {
     ) {
       return;
     }
-    selectedId = selectedId === t.id ? null : t.id;
+    const tap = nextTileTap(selectedId, t.id);
+    if (tap.type === "discard") {
+      discardTile(tap.tileId);
+      return;
+    }
+    selectedId = tap.tileId;
     void sfx(() => audio.soft());
     render();
   });
@@ -727,8 +774,10 @@ function renderDiscards(seat) {
   if (!root) return;
   root.replaceChildren();
   const list = state.seats[seat].discards.slice(-18);
-  for (const t of list) {
-    root.appendChild(tileImg(t.key, true));
+  for (const [index, t] of list.entries()) {
+    const tile = tileImg(t.key, true);
+    if (index >= list.length - 2) tile.classList.add("recent");
+    root.appendChild(tile);
   }
 }
 
@@ -779,6 +828,8 @@ function renderActions() {
   }
 
   if (state.phase === "claim") {
+    el.actionPrompt.textContent =
+      state.claim?.mode === "rob_kong" ? "可搶槓，請選擇" : "有人打牌，請選擇";
     const opts = legalClaims(state, PLAYER);
     const done = state.claim?.passes[PLAYER] || state.claim?.pending[PLAYER];
     if (!done) {
@@ -796,6 +847,14 @@ function renderActions() {
     state.turn === PLAYER &&
     state.mustDiscard
   ) {
+    el.actionPrompt.textContent = selectedId == null
+      ? "點牌選取；再點一次直接打出"
+      : `已選 ${tileDef(
+          state.drawnTile?.id === selectedId
+            ? state.drawnTile.key
+            : state.seats[PLAYER].hand.find((t) => t.id === selectedId)?.key ||
+                "man1",
+        ).label}，再點一次或按「打出」`;
     show(el.btnDiscard, true);
     any = true;
     if (canHuSelf(state, PLAYER)) {
