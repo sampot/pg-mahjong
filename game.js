@@ -1,18 +1,21 @@
 /**
- * Taiwan 16-tile mahjong rules (simplified scoring).
- * All mutations go through applyAction for future mahjong.v1 Invite.
+ * Taiwan 16-tile mahjong rules (configurable house rules).
+ * Mutations go through applyAction.
  */
 
 import {
   makeWall,
   isFlower,
-  isHonor,
   isSuitTile,
   sortTiles,
   tileDef,
   WIND_KEYS,
   WIND_LABELS,
 } from "./tiles.js";
+import { mergeRuleset } from "./ruleset.js";
+import { findWinningPartition, waitingKeys } from "./partition.js";
+import { scoreWin, buildPayments, seatWind } from "./score.js";
+import { replaceAllFlowersPure } from "./flowers.js";
 
 /**
  * @typedef {{ id: number, key: string }} Tile
@@ -25,7 +28,9 @@ import {
  * }} Seat
  * @typedef {{
  *   phase: 'idle'|'playing'|'claim'|'ended',
+ *   ruleset: import('./ruleset.js').Ruleset,
  *   wall: Tile[],
+ *   deadWall: Tile[],
  *   seats: Seat[],
  *   dealer: number,
  *   roundWind: number,
@@ -35,14 +40,19 @@ import {
  *   lastDiscard: { tile: Tile, from: number } | null,
  *   claim: null | {
  *     tile: Tile,
- *  from: number,
+ *     from: number,
+ *     mode: 'discard'|'rob_kong',
  *     passes: boolean[],
  *     pending: (null | ClaimIntent)[],
  *   },
+ *   guoShui: boolean[],
+ *   lastDrawKind: 'normal'|'kong'|'flower'|null,
+ *   liveBeforeDraw: number,
  *   scores: number[],
  *   dealerStreak: number,
  *   result: null | WinResult | { kind: 'draw' },
  *   message: string,
+ *   lastError: string | null,
  * }} GameState
  * @typedef {{ kind: 'hu'|'kong'|'pong'|'chi', chiTiles?: Tile[] }} ClaimIntent
  * @typedef {{
@@ -58,13 +68,16 @@ import {
  */
 
 export const PLAYER = 0;
-export const BASE_POINTS = 1;
+export { seatWind, findWinningPartition, waitingKeys };
+export { WIND_KEYS };
 
 /** @returns {GameState} */
-export function createInitialState() {
+export function createInitialState(rulesetPartial = {}) {
   return {
     phase: "idle",
+    ruleset: mergeRuleset(rulesetPartial),
     wall: [],
+    deadWall: [],
     seats: emptySeats(),
     dealer: 0,
     roundWind: 0,
@@ -73,10 +86,14 @@ export function createInitialState() {
     drawnTile: null,
     lastDiscard: null,
     claim: null,
+    guoShui: [false, false, false, false],
+    lastDrawKind: null,
+    liveBeforeDraw: 0,
     scores: [0, 0, 0, 0],
     dealerStreak: 0,
     result: null,
-    message: "點「開局」開始。十六張台規簡化版。",
+    message: "點「開局」開始。十六張台灣麻將。",
+    lastError: null,
   };
 }
 
@@ -90,15 +107,6 @@ function emptySeats() {
 }
 
 /**
- * Seat wind index 0=東… for seat relative to dealer.
- * @param {GameState} state
- * @param {number} seat
- */
-export function seatWind(state, seat) {
-  return (seat - state.dealer + 4) % 4;
-}
-
-/**
  * @param {GameState} state
  * @param {number} seat
  */
@@ -107,7 +115,6 @@ export function seatWindLabel(state, seat) {
 }
 
 /**
- * Concealed tiles for a seat (hand + separate drawn tile when it is their turn).
  * @param {GameState} state
  * @param {number} seat
  * @returns {Tile[]}
@@ -127,6 +134,14 @@ export function concealedTiles(state, seat) {
  */
 export function applyAction(state, action) {
   switch (action.type) {
+    case "set_ruleset":
+      if (state.phase !== "idle") return state;
+      return {
+        ...state,
+        ruleset: mergeRuleset({ ...state.ruleset, ...action.ruleset }),
+        message: "家規已更新。",
+        lastError: null,
+      };
     case "deal":
       return deal(state);
     case "discard":
@@ -143,6 +158,8 @@ export function applyAction(state, action) {
       return trySelfDrawHu(state, action.seat);
     case "hu_claim":
       return submitClaim(state, action.seat, { kind: "hu" });
+    case "flower_hu":
+      return tryFlowerHu(state, action.seat);
     default:
       return state;
   }
@@ -152,136 +169,163 @@ export function applyAction(state, action) {
  * @param {GameState} state
  */
 function deal(state) {
-  if (state.phase === "playing" || state.phase === "claim") return state;
-  const wall = shuffle(makeWall());
+  if (state.phase !== "idle") {
+    return { ...state, lastError: "請先結束目前結果再開局。" };
+  }
+  const full = shuffle(makeWall());
   const seats = emptySeats();
   for (let r = 0; r < 16; r++) {
     for (let s = 0; s < 4; s++) {
-      const t = wall.pop();
+      const t = full.pop();
       if (t) seats[s].hand.push(t);
     }
   }
   for (const seat of seats) seat.hand = sortTiles(seat.hand);
+
+  const deadSize = Math.min(state.ruleset.deadWallSize, full.length);
+  const deadWall = full.splice(0, deadSize);
+  const wall = full;
 
   /** @type {GameState} */
   let next = {
     ...state,
     phase: "playing",
     wall,
+    deadWall,
     seats,
     turn: state.dealer,
     mustDiscard: false,
     drawnTile: null,
     lastDiscard: null,
     claim: null,
+    guoShui: [false, false, false, false],
+    lastDrawKind: null,
+    liveBeforeDraw: wall.length,
     result: null,
     message: "補花中…",
+    lastError: null,
   };
-  next = replaceAllFlowers(next);
-  next = drawForTurn(next);
+  next = replaceAllFlowersPure(next, takeSupplement);
+  next = drawForTurn(next, "normal");
+  if (next.phase === "ended") return next;
   next.message = `${seatWindLabel(next, next.turn)}家摸牌，請打牌。`;
   return next;
 }
 
 /**
+ * Draw supplement for flower/kong from dead wall (fallback to live if empty).
  * @param {GameState} state
  */
-function replaceAllFlowers(state) {
-  let s = state;
-  let guard = 0;
-  while (guard++ < 80) {
-    let any = false;
-    for (let i = 0; i < 4; i++) {
-      const flower = s.seats[i].hand.find((t) => isFlower(t.key));
-      if (!flower) continue;
-      any = true;
-      if (!s.wall.length) {
-        // no replacement — move flower out and leave short hand
-        const seats = s.seats.map((seat, idx) =>
-          idx === i
-            ? {
-                ...seat,
-                hand: seat.hand.filter((t) => t.id !== flower.id),
-                flowers: [...seat.flowers, flower],
-              }
-            : seat,
-        );
-        s = { ...s, seats };
-        continue;
-      }
-      const wall = [...s.wall];
-      const hand = s.seats[i].hand.filter((t) => t.id !== flower.id);
-      const flowers = [...s.seats[i].flowers, flower];
-      let repl = null;
-      while (wall.length) {
-        const t = wall.pop();
-        if (!t) break;
-        if (isFlower(t.key)) {
-          flowers.push(t);
-          continue;
-        }
-        repl = t;
-        break;
-      }
-      const seats = s.seats.map((seat, idx) =>
-        idx === i
-          ? {
-              ...seat,
-              hand: sortTiles(repl ? [...hand, repl] : hand),
-              flowers,
-            }
-          : seat,
-      );
-      s = { ...s, wall, seats };
-    }
-    if (!any) break;
-  }
-  return s;
+function takeSupplement(state) {
+  const deadWall = [...state.deadWall];
+  const wall = [...state.wall];
+  let tile = null;
+  if (deadWall.length) tile = deadWall.pop() || null;
+  else if (wall.length) tile = wall.pop() || null;
+  return { tile, deadWall, wall };
 }
 
 /**
- * After draw, auto-set aside flowers and draw replacements.
+ * Normal draw from live wall.
  * @param {GameState} state
  */
-function drawForTurn(state) {
-  if (!state.wall.length) {
+function takeLive(state) {
+  const wall = [...state.wall];
+  const tile = wall.length ? wall.pop() || null : null;
+  return { tile, wall, deadWall: state.deadWall };
+}
+
+/**
+ * @param {GameState} state
+ * @param {'normal'|'kong'|'flower'} kind
+ */
+function drawForTurn(state, kind = "normal") {
+  const liveBefore = state.wall.length;
+  if (kind === "normal" && !state.wall.length) {
     return endDraw(state);
   }
-  let s = { ...state };
-  /** @type {Tile | null} */
-  let drawn = s.wall.pop() || null;
-  if (!drawn) return endDraw(s);
 
-  // Keep drawn tile out of the sorted hand; only flower-replace the draw.
-  const flowers = [...s.seats[s.turn].flowers];
-  const wall = [...s.wall];
-  while (drawn && isFlower(drawn.key) && wall.length) {
-    flowers.push(drawn);
-    let repl = null;
-    while (wall.length) {
-      const t = wall.pop();
-      if (!t) break;
-      if (isFlower(t.key)) {
-        flowers.push(t);
-        continue;
-      }
-      repl = t;
-      break;
+  let tile = null;
+  let wall = state.wall;
+  let deadWall = state.deadWall;
+
+  if (kind === "normal") {
+    const got = takeLive(state);
+    tile = got.tile;
+    wall = got.wall;
+  } else {
+    const got = takeSupplement(state);
+    tile = got.tile;
+    wall = got.wall;
+    deadWall = got.deadWall;
+    if (!tile) {
+      // Kong declared but no tile to replace — end as draw after kong formed
+      return endDraw({ ...state, wall, deadWall });
     }
-    drawn = repl;
   }
 
-  const seats = s.seats.map((seat, i) =>
-    i === s.turn ? { ...seat, flowers } : seat,
+  if (!tile) return endDraw({ ...state, wall, deadWall });
+
+  const flowers = [...state.seats[state.turn].flowers];
+  let drawKind = kind;
+  while (tile && isFlower(tile.key)) {
+    flowers.push(tile);
+    drawKind = "flower";
+    const more = takeSupplement({ ...state, wall, deadWall });
+    wall = more.wall;
+    deadWall = more.deadWall;
+    tile = more.tile;
+    if (!tile) {
+      // Flower exposed, no replacement — discard from existing hand
+      const seats = state.seats.map((seat, i) =>
+        i === state.turn ? { ...seat, flowers } : seat,
+      );
+      return {
+        ...state,
+        wall,
+        deadWall,
+        seats,
+        mustDiscard: true,
+        drawnTile: null,
+        lastDrawKind: "flower",
+        liveBeforeDraw: liveBefore,
+        message: `${seatWindLabel(state, state.turn)}家補花（無牌可補）`,
+      };
+    }
+  }
+
+  // 七搶一 check when someone else might steal — handled when flower is first exposed mid-game
+  const seats = state.seats.map((seat, i) =>
+    i === state.turn ? { ...seat, flowers } : seat,
   );
-  return {
-    ...s,
+
+  let next = {
+    ...state,
     wall,
+    deadWall,
     seats,
     mustDiscard: true,
-    drawnTile: drawn,
+    drawnTile: tile,
+    lastDrawKind: drawKind,
+    liveBeforeDraw: liveBefore,
   };
+
+  // 八仙過海: 8 flowers after replacements
+  if (
+    state.ruleset.baXian &&
+    seats[state.turn].flowers.length >= 8
+  ) {
+    return declareWin(next, state.turn, null, true, { baXian: true });
+  }
+
+  return next;
 }
+
+/**
+ * Mid-game: when a seat exposes a new flower, others with 7 may 七搶一.
+ * Called from draw flower path — for simplicity check after flowers update in drawForTurn.
+ * Full 七搶一: when seat B draws a flower and A has 7, A can claim. Implemented in claim after flower draw via dedicated check in app — engine helper:
+ */
 
 /**
  * @param {GameState} state
@@ -289,24 +333,53 @@ function drawForTurn(state) {
  * @param {number} tileId
  */
 function discard(state, seat, tileId) {
-  if (state.phase !== "playing") return state;
-  if (state.turn !== seat || !state.mustDiscard) return state;
+  if (state.phase !== "playing") {
+    return { ...state, lastError: "現在不能打牌。" };
+  }
+  if (state.turn !== seat || !state.mustDiscard) {
+    return { ...state, lastError: "還沒輪到你打牌。" };
+  }
 
   const drawn = state.drawnTile;
   const fromDrawn = drawn && drawn.id === tileId;
   const fromHand = state.seats[seat].hand.find((t) => t.id === tileId);
   const tile = fromDrawn ? drawn : fromHand;
-  if (!tile || isFlower(tile.key)) return state;
+  if (!tile) {
+    return { ...state, lastError: "請先選一張牌。" };
+  }
+  if (isFlower(tile.key)) {
+    return { ...state, lastError: "花牌不能打出。" };
+  }
 
   /** @type {Tile[]} */
   let hand;
   if (fromDrawn) {
-    // Discard the tsumo tile; sorted hand stays as-is.
     hand = state.seats[seat].hand;
   } else {
-    // Discard from hand; fold the drawn tile into the hand.
     hand = state.seats[seat].hand.filter((t) => t.id !== tileId);
-    if (drawn) hand = sortTiles([...hand, drawn]);
+    if (drawn) {
+      if (isFlower(drawn.key)) {
+        // safety: never fold flower into hand
+        return {
+          ...state,
+          lastError: "尚有未補完的花牌狀態異常。",
+        };
+      }
+      hand = sortTiles([...hand, drawn]);
+    }
+  }
+
+  // 過水 clear on 過手: discard after drawing a non-winning tile
+  let guoShui = [...state.guoShui];
+  if (guoShui[seat] && drawn && !isFlower(drawn.key)) {
+    const withDraw = sortTiles([...state.seats[seat].hand, drawn]);
+    const drawWasWin = Boolean(
+      findWinningPartition(state.seats[seat].melds, withDraw),
+    );
+    if (!drawWasWin) guoShui[seat] = false;
+  } else if (guoShui[seat] && !drawn) {
+    // discard-only turn (after pung/chi) — treat as 過手
+    guoShui[seat] = false;
   }
 
   const seats = state.seats.map((s, i) =>
@@ -326,12 +399,14 @@ function discard(state, seat, tileId) {
     claim: {
       tile,
       from: seat,
+      mode: "discard",
       passes: [false, false, false, false],
       pending: [null, null, null, null],
     },
+    guoShui,
     message: `${seatWindLabel(state, seat)}家打出 ${tileDef(tile.key).label}`,
+    lastError: null,
   };
-  // Discarder cannot claim; auto-pass
   next.claim.passes[seat] = true;
   return resolveClaimsIfReady(next);
 }
@@ -346,7 +421,10 @@ function submitClaim(state, seat, intent) {
   if (seat === state.claim.from) return state;
   if (state.claim.passes[seat] || state.claim.pending[seat]) return state;
 
-  if (intent.kind === "hu") {
+  if (state.claim.mode === "rob_kong") {
+    if (intent.kind !== "hu") return state;
+    if (!canHuOnRobKong(state, seat)) return state;
+  } else if (intent.kind === "hu") {
     if (!canHuOnDiscard(state, seat)) return state;
   } else if (intent.kind === "pong") {
     if (!canPong(state, seat)) return state;
@@ -359,7 +437,7 @@ function submitClaim(state, seat, intent) {
 
   const pending = [...state.claim.pending];
   pending[seat] = intent;
-  const next = { ...state, claim: { ...state.claim, pending } };
+  const next = { ...state, claim: { ...state.claim, pending }, lastError: null };
   return resolveClaimsIfReady(next);
 }
 
@@ -370,9 +448,25 @@ function submitClaim(state, seat, intent) {
 function passClaim(state, seat) {
   if (state.phase !== "claim" || !state.claim) return state;
   if (seat === state.claim.from) return state;
+
+  // 過水: had hu and passed
+  let guoShui = [...state.guoShui];
+  if (state.claim.mode === "discard") {
+    const t = state.claim.tile;
+    const hand = sortTiles([...state.seats[seat].hand, t]);
+    if (findWinningPartition(state.seats[seat].melds, hand)) {
+      guoShui[seat] = true;
+    }
+  }
+
   const passes = [...state.claim.passes];
   passes[seat] = true;
-  const next = { ...state, claim: { ...state.claim, passes } };
+  const next = {
+    ...state,
+    guoShui,
+    claim: { ...state.claim, passes },
+    lastError: null,
+  };
   return resolveClaimsIfReady(next);
 }
 
@@ -383,7 +477,6 @@ function resolveClaimsIfReady(state) {
   const claim = state.claim;
   if (!claim) return state;
 
-  // Auto-pass seats that have no legal claim and haven't answered
   const passes = [...claim.passes];
   const pending = [...claim.pending];
   for (let s = 0; s < 4; s++) {
@@ -399,43 +492,57 @@ function resolveClaimsIfReady(state) {
     return { ...state, claim: { ...claim, passes, pending } };
   }
 
-  // Pick highest priority claim
   /** @type {{ seat: number, intent: ClaimIntent, rank: number }[]} */
   const bids = [];
   for (let s = 0; s < 4; s++) {
     const intent = pending[s];
     if (!intent) continue;
-    bids.push({ seat: s, intent, rank: claimRank(intent.kind) });
+    bids.push({
+      seat: s,
+      intent,
+      rank: claimRank(intent.kind, state.ruleset),
+    });
   }
+
   if (!bids.length) {
+    if (claim.mode === "rob_kong") {
+      return finishJiaKongSupplement(state);
+    }
     return advanceAfterPass(state);
   }
+
   bids.sort((a, b) => {
     if (b.rank !== a.rank) return b.rank - a.rank;
-    // closer to discarder (next first)
     const da = (a.seat - claim.from + 4) % 4;
     const db = (b.seat - claim.from + 4) % 4;
     return da - db;
   });
-  const win = bids[0];
-  if (win.intent.kind === "hu") {
-    return declareWin(state, win.seat, claim.from, false);
+
+  if (!state.ruleset.multiHu) {
+    const win = bids[0];
+    if (win.intent.kind === "hu") {
+      const lastDiscardWin =
+        claim.mode === "discard" && state.wall.length === 0;
+      return declareWin(state, win.seat, claim.from, false, {
+        robKong: claim.mode === "rob_kong",
+        lastDiscardWin,
+        winKey: claim.tile.key,
+      });
+    }
+    if (win.intent.kind === "kong") return takeMingKong(state, win.seat);
+    if (win.intent.kind === "pong") return takePong(state, win.seat);
+    if (win.intent.kind === "chi") {
+      return takeChi(state, win.seat, win.intent.chiTiles || []);
+    }
   }
-  if (win.intent.kind === "kong") {
-    return takeMingKong(state, win.seat);
-  }
-  if (win.intent.kind === "pong") {
-    return takePong(state, win.seat);
-  }
-  if (win.intent.kind === "chi") {
-    return takeChi(state, win.seat, win.intent.chiTiles || []);
-  }
+
   return advanceAfterPass(state);
 }
 
-function claimRank(kind) {
+function claimRank(kind, ruleset) {
   if (kind === "hu") return 3;
-  if (kind === "kong" || kind === "pong") return 2;
+  if (kind === "kong") return ruleset.kongBeatsPong ? 2.5 : 2;
+  if (kind === "pong") return 2;
   if (kind === "chi") return 1;
   return 0;
 }
@@ -453,7 +560,7 @@ function advanceAfterPass(state) {
     mustDiscard: false,
     message: `${seatWindLabel(state, nextTurn)}家摸牌`,
   };
-  next = drawForTurn(next);
+  next = drawForTurn(next, "normal");
   return next;
 }
 
@@ -491,6 +598,7 @@ function takePong(state, seat) {
     turn: seat,
     mustDiscard: true,
     drawnTile: null,
+    lastDrawKind: null,
     message: `${seatWindLabel(state, seat)}家碰`,
   };
 }
@@ -530,14 +638,14 @@ function takeMingKong(state, seat) {
     mustDiscard: false,
     message: `${seatWindLabel(state, seat)}家槓，補牌`,
   };
-  next = drawForTurn(next);
+  next = drawForTurn(next, "kong");
   return next;
 }
 
 /**
  * @param {GameState} state
  * @param {number} seat
- * @param {Tile[]} chiTiles two tiles from hand
+ * @param {Tile[]} chiTiles
  */
 function takeChi(state, seat, chiTiles) {
   const claim = state.claim;
@@ -594,7 +702,6 @@ function anKong(state, seat, key) {
     state.drawnTile && !usedIds.has(state.drawnTile.id)
       ? state.drawnTile
       : null;
-  // Any leftover drawn tile folds into hand before the kong supplement draw.
   const merged = drawnKept ? sortTiles([...hand, drawnKept]) : sortTiles(hand);
   const meld = {
     type: /** @type {const} */ ("kong"),
@@ -610,13 +717,13 @@ function anKong(state, seat, key) {
     drawnTile: null,
     mustDiscard: false,
     message: `${seatWindLabel(state, seat)}家暗槓，補牌`,
+    lastError: null,
   };
-  next = drawForTurn(next);
+  next = drawForTurn(next, "kong");
   return next;
 }
 
 /**
- * Upgrade pong to kong with 4th tile from hand.
  * @param {GameState} state
  * @param {number} seat
  * @param {number} tileId
@@ -634,68 +741,120 @@ function jiaKong(state, seat, tileId) {
     (m) => m.type === "pong" && m.tiles[0].key === tile.key,
   );
   if (meldIdx < 0) return state;
+
   let hand = fromDrawn
     ? [...state.seats[seat].hand]
     : state.seats[seat].hand.filter((t) => t.id !== tileId);
-  // Fold leftover drawn tile into hand before the supplement draw.
   if (!fromDrawn && state.drawnTile) {
+    if (isFlower(state.drawnTile.key)) return state;
     hand = sortTiles([...hand, state.drawnTile]);
   }
   const melds = state.seats[seat].melds.map((m, i) =>
     i === meldIdx
-      ? { type: /** @type {const} */ ("kong"), tiles: [...m.tiles, tile], concealed: false }
+      ? {
+          type: /** @type {const} */ ("kong"),
+          tiles: [...m.tiles, tile],
+          concealed: false,
+        }
       : m,
   );
   const seats = state.seats.map((s, i) =>
     i === seat ? { ...s, hand: sortTiles(hand), melds } : s,
   );
+
+  let guoShui = [...state.guoShui];
+  if (state.ruleset.guoShuiJiaKongClears) guoShui[seat] = false;
+
+  /** @type {GameState} */
   let next = {
     ...state,
     seats,
     drawnTile: null,
     mustDiscard: false,
-    message: `${seatWindLabel(state, seat)}家加槓，補牌`,
+    guoShui,
+    message: `${seatWindLabel(state, seat)}家加槓`,
+    lastError: null,
   };
-  next = drawForTurn(next);
+
+  if (state.ruleset.allowRobKong) {
+    next = {
+      ...next,
+      phase: "claim",
+      claim: {
+        tile,
+        from: seat,
+        mode: "rob_kong",
+        passes: [false, false, false, false],
+        pending: [null, null, null, null],
+      },
+      lastDiscard: { tile, from: seat },
+    };
+    next.claim.passes[seat] = true;
+    return resolveClaimsIfReady(next);
+  }
+
+  return finishJiaKongSupplement(next);
+}
+
+/**
+ * @param {GameState} state
+ */
+function finishJiaKongSupplement(state) {
+  let next = {
+    ...state,
+    phase: "playing",
+    claim: null,
+    turn: state.claim?.from ?? state.turn,
+    mustDiscard: false,
+    message: `${seatWindLabel(state, state.claim?.from ?? state.turn)}家加槓，補牌`,
+  };
+  next = drawForTurn(next, "kong");
   return next;
 }
 
 /**
  * @param {GameState} state
  * @param {number} winner
- * @param {number | null} from discarder or null if self-draw
+ * @param {number | null} from
  * @param {boolean} selfDraw
+ * @param {object} [meta]
  */
-export function declareWin(state, winner, from, selfDraw) {
+export function declareWin(state, winner, from, selfDraw, meta = {}) {
   const winTile = selfDraw
-    ? null
+    ? state.drawnTile
     : state.claim?.tile || state.lastDiscard?.tile || null;
   const hand = selfDraw
     ? concealedTiles(state, winner)
-    : sortTiles([...state.seats[winner].hand, winTile].filter(Boolean));
+    : sortTiles(
+        [...state.seats[winner].hand, winTile].filter(Boolean),
+      );
 
-  const scored = scoreWin(state, winner, hand, selfDraw);
+  const winMeta = {
+    ...meta,
+    winKey: winTile?.key,
+    fromKong: selfDraw && state.lastDrawKind === "kong",
+    fromFlower: selfDraw && state.lastDrawKind === "flower",
+    lastDrawWin: selfDraw && state.liveBeforeDraw === 1,
+  };
+
+  const scored = scoreWin(state, winner, hand, selfDraw, winMeta);
   if (!scored) {
-    // illegal hu attempt — treat as pass if claim
     if (!selfDraw && state.phase === "claim") {
       return passClaim(state, winner);
     }
-    return state;
+    return { ...state, lastError: "未達起胡台數或牌型不正確。" };
   }
 
-  const payments = [0, 0, 0, 0];
-  if (selfDraw) {
-    for (let i = 0; i < 4; i++) {
-      if (i === winner) continue;
-      payments[i] = -scored.points;
-      payments[winner] += scored.points;
-    }
-  } else if (from != null) {
-    payments[from] = -scored.points;
-    payments[winner] = scored.points;
-  }
-
+  const payments = buildPayments(
+    state,
+    winner,
+    from,
+    selfDraw,
+    scored,
+    meta,
+  );
   const scores = state.scores.map((v, i) => v + payments[i]);
+
   let dealer = state.dealer;
   let dealerStreak = state.dealerStreak;
   let roundWind = state.roundWind;
@@ -705,7 +864,6 @@ export function declareWin(state, winner, from, selfDraw) {
     dealer = (state.dealer + 1) % 4;
     dealerStreak = 0;
     if (dealer === 0) {
-      // completed circuit — advance round wind lightly
       roundWind = (roundWind + 1) % 4;
     }
   }
@@ -715,7 +873,7 @@ export function declareWin(state, winner, from, selfDraw) {
     kind: "win",
     winner,
     from,
-    selfDraw,
+    selfDraw: selfDraw || Boolean(meta.baXian),
     tai: scored.tai,
     details: scored.details,
     points: scored.points,
@@ -734,11 +892,11 @@ export function declareWin(state, winner, from, selfDraw) {
     roundWind,
     result,
     message: `${seatWindLabel(state, winner)}家胡了！${scored.tai} 台`,
+    lastError: null,
   };
 }
 
 /**
- * Try self-draw hu for current seat (call from UI when hand wins after draw).
  * @param {GameState} state
  * @param {number} seat
  */
@@ -746,14 +904,38 @@ export function trySelfDrawHu(state, seat) {
   if (state.phase !== "playing" || state.turn !== seat || !state.mustDiscard) {
     return state;
   }
+  if (state.guoShui[seat]) {
+    return { ...state, lastError: "過水中，不能胡。" };
+  }
   if (!canHuSelf(state, seat)) return state;
-  return declareWin(state, seat, null, true);
+  return declareWin(state, seat, null, true, {});
+}
+
+/**
+ * @param {GameState} state
+ * @param {number} seat
+ */
+function tryFlowerHu(state, seat) {
+  if (!state.ruleset.baXian) return state;
+  if (state.seats[seat].flowers.length < 8) return state;
+  if (state.phase !== "playing" || state.turn !== seat) return state;
+  return declareWin(state, seat, null, true, { baXian: true });
 }
 
 /**
  * @param {GameState} state
  */
 function endDraw(state) {
+  let dealer = state.dealer;
+  let dealerStreak = state.dealerStreak;
+  let roundWind = state.roundWind;
+  if (state.ruleset.keepDealerOnDraw) {
+    dealerStreak += 1;
+  } else {
+    dealer = (state.dealer + 1) % 4;
+    dealerStreak = 0;
+    if (dealer === 0) roundWind = (roundWind + 1) % 4;
+  }
   return {
     ...state,
     phase: "ended",
@@ -761,13 +943,15 @@ function endDraw(state) {
     mustDiscard: false,
     drawnTile: null,
     claim: null,
-    message: "流局（牌山用盡）",
-    dealer: (state.dealer + 1) % 4,
-    dealerStreak: 0,
+    message: "流局（臭莊）",
+    dealer,
+    dealerStreak,
+    roundWind,
+    lastError: null,
   };
 }
 
-/* ─── Legality helpers ─── */
+/* ─── Legality ─── */
 
 /**
  * @param {GameState} state
@@ -779,6 +963,10 @@ export function legalClaims(state, seat) {
   }
   /** @type {{ kind: string, chiOptions?: Tile[][] }[]} */
   const opts = [];
+  if (state.claim.mode === "rob_kong") {
+    if (canHuOnRobKong(state, seat)) opts.push({ kind: "hu" });
+    return opts;
+  }
   if (canHuOnDiscard(state, seat)) opts.push({ kind: "hu" });
   if (canMingKong(state, seat)) opts.push({ kind: "kong" });
   if (canPong(state, seat)) opts.push({ kind: "pong" });
@@ -814,7 +1002,7 @@ export function canMingKong(state, seat) {
  * @param {number} seat
  */
 export function canChi(state, seat) {
-  if (!state.claim) return false;
+  if (!state.claim || state.claim.mode !== "discard") return false;
   if ((state.claim.from + 1) % 4 !== seat) return false;
   return listChiOptions(state, seat).length > 0;
 }
@@ -864,10 +1052,33 @@ function isValidChi(state, seat, chiTiles) {
  * @param {number} seat
  */
 export function canHuOnDiscard(state, seat) {
+  if (state.guoShui[seat]) return false;
   const t = state.claim?.tile;
   if (!t) return false;
   const hand = sortTiles([...state.seats[seat].hand, t]);
-  return Boolean(findWinningPartition(state.seats[seat].melds, hand));
+  if (!findWinningPartition(state.seats[seat].melds, hand)) return false;
+  const scored = scoreWin(state, seat, hand, false, {
+    winKey: t.key,
+    lastDiscardWin: state.wall.length === 0,
+  });
+  return Boolean(scored);
+}
+
+/**
+ * @param {GameState} state
+ * @param {number} seat
+ */
+export function canHuOnRobKong(state, seat) {
+  if (state.guoShui[seat]) return false;
+  const t = state.claim?.tile;
+  if (!t) return false;
+  const hand = sortTiles([...state.seats[seat].hand, t]);
+  if (!findWinningPartition(state.seats[seat].melds, hand)) return false;
+  const scored = scoreWin(state, seat, hand, false, {
+    robKong: true,
+    winKey: t.key,
+  });
+  return Boolean(scored);
 }
 
 /**
@@ -875,13 +1086,19 @@ export function canHuOnDiscard(state, seat) {
  * @param {number} seat
  */
 export function canHuSelf(state, seat) {
-  return Boolean(
-    findWinningPartition(state.seats[seat].melds, concealedTiles(state, seat)),
-  );
+  if (state.guoShui[seat]) return false;
+  const hand = concealedTiles(state, seat);
+  if (!findWinningPartition(state.seats[seat].melds, hand)) return false;
+  const scored = scoreWin(state, seat, hand, true, {
+    fromKong: state.lastDrawKind === "kong",
+    fromFlower: state.lastDrawKind === "flower",
+    lastDrawWin: state.liveBeforeDraw === 1,
+    winKey: state.drawnTile?.key,
+  });
+  return Boolean(scored);
 }
 
 /**
- * Keys that can be an-konged.
  * @param {GameState} state
  * @param {number} seat
  */
@@ -896,7 +1113,6 @@ export function anKongKeys(state, seat) {
 }
 
 /**
- * Hand tile ids that can jia-kong.
  * @param {GameState} state
  * @param {number} seat
  */
@@ -915,172 +1131,12 @@ export function jiaKongTileIds(state, seat) {
   return ids;
 }
 
-/* ─── Win / score ─── */
-
 /**
- * @param {Meld[]} melds
- * @param {Tile[]} hand including win tile
- * @returns {null | { pairs: string, sets: string[] }}
- */
-export function findWinningPartition(melds, hand) {
-  const needSets = 5 - melds.length;
-  if (needSets < 0) return null;
-  const keys = hand.map((t) => t.key).sort();
-  if (keys.length !== needSets * 3 + 2) return null;
-  return tryPartition(keys, needSets, true);
-}
-
-/**
- * @param {string[]} keys sorted multiset
- * @param {number} setsLeft
- * @param {boolean} needPair
- * @returns {null | { pairs: string, sets: string[] }}
- */
-function tryPartition(keys, setsLeft, needPair) {
-  if (keys.length === 0) {
-    return setsLeft === 0 && !needPair ? { pairs: "", sets: [] } : null;
-  }
-  if (needPair) {
-    for (let i = 0; i < keys.length - 1; i++) {
-      if (keys[i] !== keys[i + 1]) continue;
-      if (i > 0 && keys[i] === keys[i - 1]) continue;
-      const rest = keys.slice(0, i).concat(keys.slice(i + 2));
-      const sub = tryPartition(rest, setsLeft, false);
-      if (sub) return { pairs: keys[i], sets: sub.sets };
-    }
-    return null;
-  }
-  // pung
-  if (keys.length >= 3 && keys[0] === keys[1] && keys[1] === keys[2]) {
-    const rest = keys.slice(3);
-    const sub = tryPartition(rest, setsLeft - 1, false);
-    if (sub) return { pairs: sub.pairs, sets: [`pung:${keys[0]}`, ...sub.sets] };
-  }
-  // chow
-  if (isSuitTile(keys[0])) {
-    const d = tileDef(keys[0]);
-    const k2 = `${d.suit}${d.rank + 1}`;
-    const k3 = `${d.suit}${d.rank + 2}`;
-    const i2 = keys.indexOf(k2);
-    const i3 = keys.indexOf(k3);
-    if (i2 > 0 && i3 > 0) {
-      const rest = keys.filter((_, i) => i !== 0 && i !== i2 && i !== i3);
-      // rebuild carefully
-      const copy = keys.slice();
-      copy.splice(i3, 1);
-      const i2b = copy.indexOf(k2);
-      copy.splice(i2b, 1);
-      copy.splice(0, 1);
-      const sub = tryPartition(copy, setsLeft - 1, false);
-      if (sub) {
-        return {
-          pairs: sub.pairs,
-          sets: [`chow:${keys[0]}`, ...sub.sets],
-        };
-      }
-    }
-  }
-  return null;
-}
-
-/**
+ * Live wall remaining (for UI).
  * @param {GameState} state
- * @param {number} winner
- * @param {Tile[]} hand
- * @param {boolean} selfDraw
  */
-export function scoreWin(state, winner, hand, selfDraw) {
-  const melds = state.seats[winner].melds;
-  const part = findWinningPartition(melds, hand);
-  if (!part) return null;
-
-  /** @type {string[]} */
-  const details = [];
-  let tai = 0;
-
-  if (winner === state.dealer) {
-    tai += 1;
-    details.push("莊家 1");
-  }
-  if (state.dealerStreak > 0 && winner === state.dealer) {
-    // streak before this win already on dealer; +1 per prior consecutive
-    tai += state.dealerStreak;
-    details.push(`連莊 ${state.dealerStreak}`);
-  }
-  if (selfDraw) {
-    tai += 1;
-    details.push("自摸 1");
-  }
-  // 門清: no chi/pong/ming-kong (an-kong ok)
-  const brokeMenqing = melds.some(
-    (m) => m.type === "chi" || m.type === "pong" || (m.type === "kong" && !m.concealed),
-  );
-  if (!brokeMenqing) {
-    tai += 1;
-    details.push("門清 1");
-  }
-
-  const allSets = [
-    ...melds.map((m) =>
-      m.type === "chi" ? `chow:${m.tiles[0].key}` : `pung:${m.tiles[0].key}`,
-    ),
-    ...part.sets,
-  ];
-  const isPengPeng = allSets.every((s) => s.startsWith("pung:"));
-  if (isPengPeng) {
-    tai += 1;
-    details.push("碰碰胡 1");
-  }
-
-  const allKeys = [
-    ...hand.map((t) => t.key),
-    ...melds.flatMap((m) => m.tiles.map((t) => t.key)),
-  ];
-  const suits = new Set(
-    allKeys.filter((k) => isSuitTile(k)).map((k) => tileDef(k).suit),
-  );
-  const hasHonor = allKeys.some((k) => isHonor(k));
-  if (suits.size === 1 && !hasHonor) {
-    tai += 3;
-    details.push("清一色 3");
-  } else if (suits.size === 1 && hasHonor) {
-    tai += 2;
-    details.push("混一色 2");
-  }
-
-  for (const set of allSets) {
-    if (!set.startsWith("pung:")) continue;
-    const key = set.slice(5);
-    const d = tileDef(key);
-    if (d.suit === "dragon") {
-      tai += 1;
-      details.push(`三元刻(${d.label}) 1`);
-    }
-    if (d.suit === "wind") {
-      if (d.rank === state.roundWind) {
-        tai += 1;
-        details.push(`圈風刻 1`);
-      }
-      if (d.rank === seatWind(state, winner)) {
-        tai += 1;
-        details.push(`門風刻 1`);
-      }
-    }
-  }
-
-  const flowerCount = state.seats[winner].flowers.length;
-  if (flowerCount) {
-    tai += flowerCount;
-    details.push(`花牌 ${flowerCount}`);
-  }
-
-  if (tai < 1) {
-    tai = 1;
-    details.push("基本 1");
-  }
-
-  const points = BASE_POINTS * 2 ** Math.min(tai, 8);
-  return { tai, details, points, partition: part };
+export function liveWallCount(state) {
+  return state.wall.length;
 }
 
 /* ─── Utils ─── */
@@ -1117,7 +1173,6 @@ function countMap(hand) {
 }
 
 /**
- * Remove n tiles of key from hand (mutates). Returns taken or null.
  * @param {Tile[]} hand
  * @param {string} key
  * @param {number} n
@@ -1137,5 +1192,3 @@ function takeN(hand, key, n) {
   }
   return taken;
 }
-
-export { WIND_KEYS };

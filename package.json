@@ -1,0 +1,10 @@
+{
+  "name": "pg-mahjong",
+  "version": "0.2.0",
+  "description": "台灣麻將：十六張常見可配家規、四人人機。純前端 Playgrounds SAM。",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "license": "MIT"
+}

@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="台灣麻將：十六張台規簡化版、四人人機、補花吃碰槓胡。純前端 Playgrounds SAM。"
+      content="台灣麻將：十六張常見可配家規、四人人機、補花吃碰槓胡。純前端 Playgrounds SAM。"
     />
     <title>台灣麻將</title>
     <link rel="stylesheet" href="./styles.css" />
@@ -16,7 +16,7 @@
     <main>
       <header class="hero">
         <h1>台灣麻將</h1>
-        <p class="tagline">十六張 · 簡化台 · 人機四人</p>
+        <p class="tagline">十六張 · 可配家規 · 人機四人</p>
       </header>
 
       <section class="meter" aria-label="對局狀態">
@@ -41,10 +41,16 @@
 
       <div class="controls">
         <button type="button" id="btn-deal">開局</button>
+        <button type="button" id="btn-rules" class="secondary">家規</button>
+        <button type="button" id="btn-auto" class="secondary" aria-pressed="false">
+          託管
+        </button>
+        <button type="button" id="btn-about" class="secondary">說明</button>
         <button type="button" id="btn-reset" class="secondary">重來</button>
       </div>
 
       <p id="status" class="status" role="status">點「開局」發牌。</p>
+      <p id="flash" class="flash" hidden role="status"></p>
 
       <section class="table" aria-label="牌桌">
         <div class="table-felt">
@@ -65,24 +71,8 @@
           </div>
 
           <div class="seat-mid">
-            <div class="seat seat-left" data-seat="1">
-              <div class="seat-meta">
-                <span class="seat-name" id="name-1">小梅</span>
-                <span class="seat-wind" id="wind-1"></span>
-                <span class="seat-count" id="count-1">0</span>
-                <span class="seat-score" id="score-1">0</span>
-              </div>
-              <div class="seat-melds" id="melds-1"></div>
-              <div class="seat-flowers" id="flowers-1"></div>
-              <div class="seat-discards" id="discards-1"></div>
-            </div>
-
-            <div class="center-felt" aria-live="polite">
-              <p id="last-tile-hint" class="trick-hint">尚未打牌</p>
-              <div id="last-tile" class="last-tile"></div>
-            </div>
-
-            <div class="seat seat-right" data-seat="3">
+            <!-- 下家在右：seat 1；上家在左：seat 3（逆時針） -->
+            <div class="seat seat-left" data-seat="3">
               <div class="seat-meta">
                 <span class="seat-name" id="name-3">黑哥</span>
                 <span class="seat-wind" id="wind-3"></span>
@@ -93,6 +83,23 @@
               <div class="seat-flowers" id="flowers-3"></div>
               <div class="seat-discards" id="discards-3"></div>
             </div>
+
+            <div class="center-felt" aria-live="polite">
+              <p id="last-tile-hint" class="trick-hint">尚未打牌</p>
+              <div id="last-tile" class="last-tile"></div>
+            </div>
+
+            <div class="seat seat-right" data-seat="1">
+              <div class="seat-meta">
+                <span class="seat-name" id="name-1">小梅</span>
+                <span class="seat-wind" id="wind-1"></span>
+                <span class="seat-count" id="count-1">0</span>
+                <span class="seat-score" id="score-1">0</span>
+              </div>
+              <div class="seat-melds" id="melds-1"></div>
+              <div class="seat-flowers" id="flowers-1"></div>
+              <div class="seat-discards" id="discards-1"></div>
+            </div>
           </div>
 
           <div class="seat seat-you" data-seat="0">
@@ -101,6 +108,7 @@
               <span class="seat-wind" id="wind-0"></span>
               <span class="seat-count" id="count-0">0</span>
               <span class="seat-score" id="score-0">0</span>
+              <span id="auto-badge" class="auto-badge" hidden>託管中</span>
             </div>
             <div class="seat-melds" id="melds-0"></div>
             <div class="seat-flowers" id="flowers-0"></div>
@@ -115,6 +123,7 @@
                 aria-label="剛摸進的牌"
               ></div>
             </div>
+            <p id="wait-hint" class="wait-hint" hidden></p>
             <div class="seat-discards" id="discards-0"></div>
           </div>
         </div>
@@ -132,6 +141,7 @@
       </div>
 
       <div id="chi-picker" class="chi-picker" hidden></div>
+      <div id="kong-picker" class="chi-picker" hidden></div>
     </main>
 
     <div id="panel-result" class="panel" hidden>
@@ -139,6 +149,7 @@
         <h2 id="result-title">結算</h2>
         <p id="result-body"></p>
         <ul id="result-tai" class="tai-list"></ul>
+        <ul id="result-pay" class="tai-list"></ul>
         <div class="panel-actions">
           <button type="button" id="btn-result-ok">繼續</button>
         </div>
@@ -148,7 +159,7 @@
     <div id="panel-confirm" class="panel" hidden>
       <div class="panel-card" role="dialog" aria-labelledby="confirm-title">
         <h2 id="confirm-title">重來？</h2>
-        <p>結束目前這局並回到待機。</p>
+        <p>結束目前這局並回到待機（保留累積分與家規）。</p>
         <div class="panel-actions">
           <button type="button" id="btn-confirm-cancel" class="secondary">取消</button>
           <button type="button" id="btn-confirm-ok">確定重來</button>
@@ -156,6 +167,92 @@
       </div>
     </div>
 
-    <script type="module" src="./app.js"></script>
+    <div id="panel-rules" class="panel" hidden>
+      <div class="panel-card panel-card-wide" role="dialog" aria-labelledby="rules-title">
+        <h2 id="rules-title">家規</h2>
+        <p class="panel-note">僅在待機時可改；預設為常見北部有花 16 張。</p>
+        <form id="rules-form" class="rules-form">
+          <label>
+            起胡台數
+            <select name="minTai">
+              <option value="0">0（屁胡可）</option>
+              <option value="1">1</option>
+              <option value="3">3</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+          <label class="check">
+            <input type="checkbox" name="minTaiExcludesDealerStreakFlowers" />
+            起胡不計莊／連／花
+          </label>
+          <label class="check">
+            <input type="checkbox" name="pullZhuang" />
+            拉莊（2N+1）
+          </label>
+          <label class="check">
+            <input type="checkbox" name="keepDealerOnDraw" />
+            流局臭莊（連莊）
+          </label>
+          <label class="check">
+            <input type="checkbox" name="allowRobKong" />
+            可搶槓
+          </label>
+          <label class="check">
+            <input type="checkbox" name="baXian" />
+            八仙過海
+          </label>
+          <label class="check">
+            <input type="checkbox" name="qiangYi" />
+            七搶一
+          </label>
+          <label>
+            花牌計台
+            <select name="flowerMode">
+              <option value="zheng">正花</option>
+              <option value="any">見花</option>
+            </select>
+          </label>
+          <label>
+            底
+            <input type="number" name="basePoints" min="0" step="1" />
+          </label>
+          <label>
+            台金
+            <input type="number" name="taiValue" min="0" step="1" />
+          </label>
+          <label>
+            滿台上限
+            <input type="number" name="taiCap" min="1" max="32" step="1" />
+          </label>
+          <label>
+            AI 難度
+            <select name="aiDifficulty" id="ai-difficulty">
+              <option value="standard">標準</option>
+              <option value="easy">輕鬆</option>
+            </select>
+          </label>
+        </form>
+        <div class="panel-actions">
+          <button type="button" id="btn-rules-cancel" class="secondary">關閉</button>
+          <button type="button" id="btn-rules-save">套用</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-about" class="panel" hidden>
+      <div class="panel-card panel-card-wide" role="dialog" aria-labelledby="about-title">
+        <h2 id="about-title">說明</h2>
+        <div class="about-body">
+          <p>台灣十六張：五面子＋將。補花、吃碰槓胡；預設正花、拉莊、搶槓、八仙過海；七搶一預設關。</p>
+          <p>可按「託管」讓 AI 代打，再按一次取消接手。詳細家規見 repo <code>RULES.md</code>。</p>
+          <p>非完整競技規程；各地台數不一，開局前請用「家規」調整。</p>
+        </div>
+        <div class="panel-actions">
+          <button type="button" id="btn-about-ok">知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js?v=2"></script>
   </body>
 </html>

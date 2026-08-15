@@ -9,9 +9,12 @@ import {
   jiaKongTileIds,
   legalClaims,
   listChiOptions,
+  liveWallCount,
   seatWindLabel,
+  waitingKeys,
 } from "./game.js";
 import { SEAT_NAMES, WIND_LABELS, tileDef } from "./tiles.js";
+import { DEFAULT_RULESET } from "./ruleset.js";
 
 const audio = new MahjongAudio();
 /** @type {import('./game.js').GameState} */
@@ -21,9 +24,13 @@ let selectedId = null;
 /** @type {ReturnType<typeof setTimeout> | null} */
 let aiTimer = null;
 let busy = false;
+let autoPlayPlayer = false;
+/** @type {'easy'|'standard'} */
+let aiDifficulty = "standard";
 
 const el = {
   status: /** @type {HTMLElement} */ (document.getElementById("status")),
+  flash: /** @type {HTMLElement} */ (document.getElementById("flash")),
   roundWind: /** @type {HTMLElement} */ (document.getElementById("round-wind")),
   dealer: /** @type {HTMLElement} */ (document.getElementById("dealer-label")),
   wall: /** @type {HTMLElement} */ (document.getElementById("wall-count")),
@@ -33,14 +40,23 @@ const el = {
   lastHint: /** @type {HTMLElement} */ (document.getElementById("last-tile-hint")),
   actionBar: /** @type {HTMLElement} */ (document.getElementById("action-bar")),
   chiPicker: /** @type {HTMLElement} */ (document.getElementById("chi-picker")),
+  kongPicker: /** @type {HTMLElement} */ (document.getElementById("kong-picker")),
   panelResult: /** @type {HTMLElement} */ (document.getElementById("panel-result")),
   panelConfirm: /** @type {HTMLElement} */ (document.getElementById("panel-confirm")),
+  panelRules: /** @type {HTMLElement} */ (document.getElementById("panel-rules")),
+  panelAbout: /** @type {HTMLElement} */ (document.getElementById("panel-about")),
   resultTitle: /** @type {HTMLElement} */ (document.getElementById("result-title")),
   resultBody: /** @type {HTMLElement} */ (document.getElementById("result-body")),
   resultTai: /** @type {HTMLElement} */ (document.getElementById("result-tai")),
+  resultPay: /** @type {HTMLElement} */ (document.getElementById("result-pay")),
+  autoBadge: /** @type {HTMLElement} */ (document.getElementById("auto-badge")),
+  waitHint: /** @type {HTMLElement} */ (document.getElementById("wait-hint")),
   btnMute: /** @type {HTMLButtonElement} */ (document.getElementById("btn-mute")),
   btnDeal: /** @type {HTMLButtonElement} */ (document.getElementById("btn-deal")),
   btnReset: /** @type {HTMLButtonElement} */ (document.getElementById("btn-reset")),
+  btnRules: /** @type {HTMLButtonElement} */ (document.getElementById("btn-rules")),
+  btnAuto: /** @type {HTMLButtonElement} */ (document.getElementById("btn-auto")),
+  btnAbout: /** @type {HTMLButtonElement} */ (document.getElementById("btn-about")),
   btnHu: /** @type {HTMLButtonElement} */ (document.getElementById("btn-hu")),
   btnKong: /** @type {HTMLButtonElement} */ (document.getElementById("btn-kong")),
   btnPong: /** @type {HTMLButtonElement} */ (document.getElementById("btn-pong")),
@@ -49,9 +65,9 @@ const el = {
   btnDiscard: /** @type {HTMLButtonElement} */ (document.getElementById("btn-discard")),
   btnAnkong: /** @type {HTMLButtonElement} */ (document.getElementById("btn-ankong")),
   btnJiakong: /** @type {HTMLButtonElement} */ (document.getElementById("btn-jiakong")),
+  rulesForm: /** @type {HTMLFormElement} */ (document.getElementById("rules-form")),
 };
 
-/** Best-effort SFX — never block game actions on AudioContext resume. */
 function sfx(play) {
   void (async () => {
     await audio.unlock();
@@ -76,15 +92,96 @@ el.btnMute.addEventListener("click", () => {
 });
 
 el.btnDeal.addEventListener("click", () => {
-  if (state.phase === "playing" || state.phase === "claim") return;
+  if (state.phase !== "idle") {
+    flash("請先關閉結算或等本局結束。");
+    return;
+  }
+  el.panelResult.hidden = true;
   dispatch({ type: "deal" });
   sfx(() => audio.deal());
 });
 
+el.btnAuto.addEventListener("click", () => {
+  autoPlayPlayer = !autoPlayPlayer;
+  el.btnAuto.setAttribute("aria-pressed", autoPlayPlayer ? "true" : "false");
+  el.btnAuto.textContent = autoPlayPlayer ? "取消託管" : "託管";
+  selectedId = null;
+  clearAi();
+  render();
+  if (autoPlayPlayer) scheduleAi();
+});
+
+el.btnRules.addEventListener("click", () => {
+  fillRulesForm();
+  el.panelRules.hidden = false;
+});
+
+el.btnAbout.addEventListener("click", () => {
+  el.panelAbout.hidden = false;
+});
+
+document.getElementById("btn-about-ok")?.addEventListener("click", () => {
+  el.panelAbout.hidden = true;
+});
+
+document.getElementById("btn-rules-cancel")?.addEventListener("click", () => {
+  el.panelRules.hidden = true;
+});
+
+document.getElementById("btn-rules-save")?.addEventListener("click", () => {
+  const fd = new FormData(el.rulesForm);
+  const patch = {
+    minTai: Number(fd.get("minTai")),
+    minTaiExcludesDealerStreakFlowers: fd.get("minTaiExcludesDealerStreakFlowers") === "on",
+    pullZhuang: fd.get("pullZhuang") === "on",
+    keepDealerOnDraw: fd.get("keepDealerOnDraw") === "on",
+    allowRobKong: fd.get("allowRobKong") === "on",
+    baXian: fd.get("baXian") === "on",
+    qiangYi: fd.get("qiangYi") === "on",
+    flowerMode: /** @type {'zheng'|'any'} */ (String(fd.get("flowerMode") || "zheng")),
+    basePoints: Number(fd.get("basePoints")),
+    taiValue: Number(fd.get("taiValue")),
+    taiCap: Number(fd.get("taiCap")),
+  };
+  aiDifficulty =
+    /** @type {'easy'|'standard'} */ (String(fd.get("aiDifficulty") || "standard"));
+  if (state.phase !== "idle") {
+    flash("對局中無法改家規，請先結束或重來。");
+    return;
+  }
+  state = applyAction(state, { type: "set_ruleset", ruleset: patch });
+  el.panelRules.hidden = true;
+  flash("家規已套用。");
+  render();
+});
+
+function fillRulesForm() {
+  const r = state.ruleset;
+  const f = el.rulesForm;
+  /** @type {HTMLSelectElement} */ (f.elements.namedItem("minTai")).value = String(r.minTai);
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("minTaiExcludesDealerStreakFlowers")).checked =
+    r.minTaiExcludesDealerStreakFlowers;
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("pullZhuang")).checked = r.pullZhuang;
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("keepDealerOnDraw")).checked =
+    r.keepDealerOnDraw;
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("allowRobKong")).checked = r.allowRobKong;
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("baXian")).checked = r.baXian;
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("qiangYi")).checked = r.qiangYi;
+  /** @type {HTMLSelectElement} */ (f.elements.namedItem("flowerMode")).value = r.flowerMode;
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("basePoints")).value = String(r.basePoints);
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("taiValue")).value = String(r.taiValue);
+  /** @type {HTMLInputElement} */ (f.elements.namedItem("taiCap")).value = String(r.taiCap);
+  /** @type {HTMLSelectElement} */ (f.elements.namedItem("aiDifficulty")).value = aiDifficulty;
+}
+
 el.btnReset.addEventListener("click", () => {
   if (state.phase === "idle") {
-    state = createInitialState();
+    const ruleset = state.ruleset;
+    const scores = state.scores;
+    state = { ...createInitialState(ruleset), scores, ruleset };
     selectedId = null;
+    autoPlayPlayer = false;
+    syncAutoButton();
     render();
     return;
   }
@@ -102,20 +199,26 @@ document.getElementById("btn-confirm-ok")?.addEventListener("click", () => {
   const dealer = state.dealer;
   const roundWind = state.roundWind;
   const dealerStreak = state.dealerStreak;
+  const ruleset = state.ruleset;
   state = {
-    ...createInitialState(),
+    ...createInitialState(ruleset),
     scores,
     dealer,
     roundWind,
     dealerStreak,
+    ruleset,
     message: "已重來。點「開局」再打一局。",
   };
   selectedId = null;
+  autoPlayPlayer = false;
+  syncAutoButton();
   render();
 });
 
 document.getElementById("btn-result-ok")?.addEventListener("click", () => {
   el.panelResult.hidden = true;
+  autoPlayPlayer = false;
+  syncAutoButton();
   state = {
     ...state,
     phase: "idle",
@@ -125,16 +228,24 @@ document.getElementById("btn-result-ok")?.addEventListener("click", () => {
 });
 
 el.btnDiscard.addEventListener("click", () => {
+  if (autoPlayPlayer) return;
   if (selectedId == null) {
+    flash("請先點選要打的牌。");
     sfx(() => audio.deny());
     return;
   }
   dispatch({ type: "discard", seat: PLAYER, tileId: selectedId });
   selectedId = null;
-  sfx(() => audio.discard());
+  if (state.lastError) {
+    flash(state.lastError);
+    sfx(() => audio.deny());
+  } else {
+    sfx(() => audio.discard());
+  }
 });
 
 el.btnHu.addEventListener("click", () => {
+  if (autoPlayPlayer) return;
   if (state.phase === "claim") {
     dispatch({ type: "hu_claim", seat: PLAYER });
   } else {
@@ -144,16 +255,19 @@ el.btnHu.addEventListener("click", () => {
 });
 
 el.btnKong.addEventListener("click", () => {
+  if (autoPlayPlayer) return;
   dispatch({ type: "claim", seat: PLAYER, intent: { kind: "kong" } });
   sfx(() => audio.claim());
 });
 
 el.btnPong.addEventListener("click", () => {
+  if (autoPlayPlayer) return;
   dispatch({ type: "claim", seat: PLAYER, intent: { kind: "pong" } });
   sfx(() => audio.claim());
 });
 
 el.btnChi.addEventListener("click", () => {
+  if (autoPlayPlayer) return;
   const opts = listChiOptions(state, PLAYER);
   if (opts.length === 1) {
     dispatch({
@@ -168,25 +282,52 @@ el.btnChi.addEventListener("click", () => {
 });
 
 el.btnPass.addEventListener("click", () => {
+  if (autoPlayPlayer) return;
   dispatch({ type: "pass_claim", seat: PLAYER });
   sfx(() => audio.soft());
 });
 
 el.btnAnkong.addEventListener("click", () => {
+  if (autoPlayPlayer) return;
   const keys = anKongKeys(state, PLAYER);
   if (!keys.length) return;
-  dispatch({ type: "ankong", seat: PLAYER, key: keys[0] });
-  sfx(() => audio.claim());
+  if (keys.length === 1) {
+    dispatch({ type: "ankong", seat: PLAYER, key: keys[0] });
+    sfx(() => audio.claim());
+    return;
+  }
+  showKongPicker(keys, "an");
 });
 
 el.btnJiakong.addEventListener("click", () => {
+  if (autoPlayPlayer) return;
   const ids = jiaKongTileIds(state, PLAYER);
   if (!ids.length) return;
-  const id = selectedId != null && ids.includes(selectedId) ? selectedId : ids[0];
-  dispatch({ type: "jiakong", seat: PLAYER, tileId: id });
-  selectedId = null;
-  sfx(() => audio.claim());
+  if (ids.length === 1 || (selectedId != null && ids.includes(selectedId))) {
+    const id = selectedId != null && ids.includes(selectedId) ? selectedId : ids[0];
+    dispatch({ type: "jiakong", seat: PLAYER, tileId: id });
+    selectedId = null;
+    sfx(() => audio.claim());
+    return;
+  }
+  showJiaKongPicker(ids);
 });
+
+function syncAutoButton() {
+  el.btnAuto.setAttribute("aria-pressed", autoPlayPlayer ? "true" : "false");
+  el.btnAuto.textContent = autoPlayPlayer ? "取消託管" : "託管";
+}
+
+/**
+ * @param {string} msg
+ */
+function flash(msg) {
+  el.flash.hidden = false;
+  el.flash.textContent = msg;
+  window.setTimeout(() => {
+    el.flash.hidden = true;
+  }, 2200);
+}
 
 /**
  * @param {{ type: string, [k: string]: any }} action
@@ -194,6 +335,9 @@ el.btnJiakong.addEventListener("click", () => {
 function dispatch(action) {
   const prev = state.phase;
   state = applyAction(state, action);
+  if (state.lastError && action.type === "discard") {
+    // keep selection feedback
+  }
   render();
   if (state.phase === "ended" && prev !== "ended") {
     showResult();
@@ -216,43 +360,64 @@ function scheduleAi() {
   if (state.phase === "ended" || state.phase === "idle") return;
 
   if (state.phase === "claim") {
-    // Player must answer if they have options or always pass eventually
     const playerDone =
       state.claim?.passes[PLAYER] || state.claim?.pending[PLAYER];
     const playerOpts = legalClaims(state, PLAYER);
-    if (!playerDone && playerOpts.length) {
-      // wait for human
+    if (!autoPlayPlayer && !playerDone && playerOpts.length) {
       return;
     }
-    if (!playerDone && !playerOpts.length) {
-      state = applyAction(state, { type: "pass_claim", seat: PLAYER });
-      render();
+    if (!playerDone && (!playerOpts.length || autoPlayPlayer)) {
+      if (!playerOpts.length) {
+        state = applyAction(state, { type: "pass_claim", seat: PLAYER });
+        render();
+      } else if (autoPlayPlayer) {
+        busy = true;
+        aiTimer = setTimeout(() => {
+          const action = chooseAiAction(state, PLAYER, { difficulty: aiDifficulty });
+          busy = false;
+          if (action) {
+            state = applyAction(state, action);
+            render();
+            if (state.phase === "ended") {
+              showResult();
+              void audio.win();
+              return;
+            }
+          }
+          scheduleAi();
+        }, 380);
+        return;
+      }
     }
     busy = true;
     aiTimer = setTimeout(runAiClaims, 380);
     return;
   }
 
-  if (state.phase === "playing" && state.turn !== PLAYER && state.mustDiscard) {
-    busy = true;
-    aiTimer = setTimeout(() => {
-      const action = chooseAiAction(state, state.turn);
-      busy = false;
-      if (action) {
-        state = applyAction(state, action);
-        if (action.type === "discard") void audio.discard();
-        else if (action.type.startsWith("hu") || action.type.includes("kong")) {
-          void audio.claim();
+  if (state.phase === "playing" && state.mustDiscard) {
+    const seat = state.turn;
+    if (seat === PLAYER && !autoPlayPlayer) return;
+    if (seat !== PLAYER || autoPlayPlayer) {
+      busy = true;
+      aiTimer = setTimeout(() => {
+        const action = chooseAiAction(state, seat, { difficulty: aiDifficulty });
+        busy = false;
+        if (action) {
+          state = applyAction(state, action);
+          if (action.type === "discard") void audio.discard();
+          else if (action.type.startsWith("hu") || action.type.includes("kong")) {
+            void audio.claim();
+          }
+          render();
+          if (state.phase === "ended") {
+            showResult();
+            void audio.win();
+            return;
+          }
+          scheduleAi();
         }
-        render();
-        if (state.phase === "ended") {
-          showResult();
-          void audio.win();
-          return;
-        }
-        scheduleAi();
-      }
-    }, 520);
+      }, seat === PLAYER ? 420 : 520);
+    }
   }
 }
 
@@ -264,14 +429,13 @@ function runAiClaims() {
   }
   for (let s = 0; s < 4; s++) {
     if (state.phase !== "claim" || !state.claim) break;
-    if (s === PLAYER) continue;
+    if (s === PLAYER && !autoPlayPlayer) continue;
     if (state.claim.passes[s] || state.claim.pending[s]) continue;
-    const action = chooseAiAction(state, s);
+    const action = chooseAiAction(state, s, { difficulty: aiDifficulty });
     if (action) {
       state = applyAction(state, action);
     }
   }
-  // ensure player auto-pass if still open with no opts
   if (
     state.phase === "claim" &&
     state.claim &&
@@ -294,6 +458,7 @@ function runAiClaims() {
  * @param {import('./game.js').Tile[][]} opts
  */
 function showChiPicker(opts) {
+  el.kongPicker.hidden = true;
   el.chiPicker.hidden = false;
   el.chiPicker.replaceChildren();
   for (const pair of opts) {
@@ -318,24 +483,86 @@ function showChiPicker(opts) {
   }
 }
 
+/**
+ * @param {string[]} keys
+ * @param {'an'} _mode
+ */
+function showKongPicker(keys, _mode) {
+  el.chiPicker.hidden = true;
+  el.kongPicker.hidden = false;
+  el.kongPicker.replaceChildren();
+  for (const key of keys) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chi-option";
+    btn.appendChild(tileImg(key, true));
+    btn.appendChild(document.createTextNode(" 暗槓"));
+    btn.addEventListener("click", () => {
+      el.kongPicker.hidden = true;
+      dispatch({ type: "ankong", seat: PLAYER, key });
+      sfx(() => audio.claim());
+    });
+    el.kongPicker.appendChild(btn);
+  }
+}
+
+/**
+ * @param {number[]} ids
+ */
+function showJiaKongPicker(ids) {
+  el.chiPicker.hidden = true;
+  el.kongPicker.hidden = false;
+  el.kongPicker.replaceChildren();
+  for (const id of ids) {
+    const tile =
+      state.drawnTile?.id === id
+        ? state.drawnTile
+        : state.seats[PLAYER].hand.find((t) => t.id === id);
+    if (!tile) continue;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chi-option";
+    btn.appendChild(tileImg(tile.key, true));
+    btn.appendChild(document.createTextNode(" 加槓"));
+    btn.addEventListener("click", () => {
+      el.kongPicker.hidden = true;
+      dispatch({ type: "jiakong", seat: PLAYER, tileId: id });
+      sfx(() => audio.claim());
+    });
+    el.kongPicker.appendChild(btn);
+  }
+}
+
 function showResult() {
   const r = state.result;
   if (!r) return;
   el.panelResult.hidden = false;
   el.resultTai.replaceChildren();
+  el.resultPay.replaceChildren();
   if (r.kind === "draw") {
     el.resultTitle.textContent = "流局";
-    el.resultBody.textContent = "牌山用盡，本局無勝負。";
+    el.resultBody.textContent = state.ruleset.keepDealerOnDraw
+      ? "牌山用盡，臭莊連莊。"
+      : "牌山用盡，本局無勝負。";
     return;
   }
   const name = SEAT_NAMES[r.winner];
   el.resultTitle.textContent = `${name} 胡牌`;
-  const how = r.selfDraw ? "自摸" : `點炮（${SEAT_NAMES[r.from ?? 0]}）`;
-  el.resultBody.textContent = `${how} · ${r.tai} 台 · ${r.points} 分`;
+  const how = r.selfDraw
+    ? "自摸"
+    : `點炮（${SEAT_NAMES[r.from ?? 0]}）`;
+  el.resultBody.textContent = `${how} · ${r.tai} 台 · 基準 ${r.points} 分`;
   for (const line of r.details) {
     const li = document.createElement("li");
     li.textContent = line;
     el.resultTai.appendChild(li);
+  }
+  for (let i = 0; i < 4; i++) {
+    const pay = r.payments[i];
+    if (!pay) continue;
+    const li = document.createElement("li");
+    li.textContent = `${SEAT_NAMES[i]} ${pay > 0 ? "+" : ""}${pay}`;
+    el.resultPay.appendChild(li);
   }
 }
 
@@ -346,8 +573,9 @@ function render() {
     state.phase === "idle" && !state.seats[0].hand.length
       ? SEAT_NAMES[state.dealer]
       : `${SEAT_NAMES[state.dealer]}（連${state.dealerStreak}）`;
-  el.wall.textContent = String(state.wall.length);
-  el.btnDeal.disabled = state.phase === "playing" || state.phase === "claim";
+  el.wall.textContent = String(liveWallCount(state));
+  el.btnDeal.disabled = state.phase !== "idle";
+  el.autoBadge.hidden = !autoPlayPlayer;
 
   for (let s = 0; s < 4; s++) {
     const nameEl = document.getElementById(`name-${s}`);
@@ -374,8 +602,31 @@ function render() {
   }
 
   renderHand();
+  renderWaitHint();
   renderLastTile();
   renderActions();
+}
+
+function renderWaitHint() {
+  if (!el.waitHint) return;
+  if (state.phase !== "playing" && state.phase !== "claim") {
+    el.waitHint.hidden = true;
+    return;
+  }
+  const melds = state.seats[PLAYER].melds;
+  const hand = state.seats[PLAYER].hand;
+  const needSets = 5 - melds.length;
+  if (needSets < 0 || hand.length !== needSets * 3 + 1) {
+    el.waitHint.hidden = true;
+    return;
+  }
+  const waits = waitingKeys(melds, hand);
+  if (!waits.length) {
+    el.waitHint.hidden = true;
+    return;
+  }
+  el.waitHint.hidden = false;
+  el.waitHint.textContent = `聽：${waits.map((k) => tileDef(k).label).join("、")}`;
 }
 
 function renderHand() {
@@ -417,7 +668,7 @@ function handTileButton(t, isDrawn) {
   face.setAttribute("aria-hidden", "true");
   btn.appendChild(face);
   btn.addEventListener("click", () => {
-    if (busy) return;
+    if (busy || autoPlayPlayer) return;
     if (
       state.phase !== "playing" ||
       state.turn !== PLAYER ||
@@ -475,7 +726,7 @@ function renderDiscards(seat) {
   const root = document.getElementById(`discards-${seat}`);
   if (!root) return;
   root.replaceChildren();
-  const list = state.seats[seat].discards.slice(-12);
+  const list = state.seats[seat].discards.slice(-18);
   for (const t of list) {
     root.appendChild(tileImg(t.key, true));
   }
@@ -486,7 +737,8 @@ function renderLastTile() {
   const t = state.lastDiscard?.tile || state.claim?.tile;
   if (t) {
     el.lastTile.appendChild(tileImg(t.key, false));
-    el.lastHint.textContent = `打出 ${tileDef(t.key).label}`;
+    const mode = state.claim?.mode === "rob_kong" ? "加槓" : "打出";
+    el.lastHint.textContent = `${mode} ${tileDef(t.key).label}`;
   } else {
     el.lastHint.textContent =
       state.phase === "playing" ? "請打牌" : "尚未打牌";
@@ -494,8 +746,19 @@ function renderLastTile() {
 }
 
 function renderActions() {
-  el.chiPicker.hidden = true;
-  el.chiPicker.replaceChildren();
+  if (!el.chiPicker.hidden && el.chiPicker.childElementCount) {
+    // keep picker while choosing
+  } else {
+    el.chiPicker.hidden = true;
+    el.chiPicker.replaceChildren();
+  }
+  if (!el.kongPicker.hidden && el.kongPicker.childElementCount) {
+    // keep
+  } else {
+    el.kongPicker.hidden = true;
+    el.kongPicker.replaceChildren();
+  }
+
   const show = (btn, on) => {
     btn.hidden = !on;
   };
@@ -509,6 +772,11 @@ function renderActions() {
   show(el.btnDiscard, false);
   show(el.btnAnkong, false);
   show(el.btnJiakong, false);
+
+  if (autoPlayPlayer) {
+    el.actionBar.hidden = true;
+    return;
+  }
 
   if (state.phase === "claim") {
     const opts = legalClaims(state, PLAYER);
@@ -541,7 +809,6 @@ function renderActions() {
 }
 
 /**
- * CSS background faces (tiles.css) — works under go-client srcdoc blob rewrite.
  * @param {string | null} key
  * @param {boolean} mini
  * @param {boolean} [forceBack]
@@ -558,4 +825,5 @@ function tileImg(key, mini, forceBack = false) {
   return wrap;
 }
 
+void DEFAULT_RULESET;
 render();

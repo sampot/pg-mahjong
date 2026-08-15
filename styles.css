@@ -34,8 +34,8 @@
       var(--drawn-reserve) + 5.5rem
   );
   /*
-   * Mobile-first: readable tiles; hand scrolls horizontally.
-   * Wide felt may shrink below max so 16+1 fit — never grow past max.
+   * General table tile size. The player's hand has its own responsive grid:
+   * 8 × 2 + drawn on phones, 16 + drawn in one row on wider screens.
    */
   --tile-face-w: clamp(2.45rem, 11.5vw, var(--tile-face-max));
   --tile-h: calc(var(--tile-face-w) * 4 / 3);
@@ -207,6 +207,28 @@ button:disabled {
   font-size: 0.9rem;
   color: var(--muted);
   min-height: 1.35em;
+}
+
+.flash {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #b45309;
+  min-height: 1.2em;
+}
+
+.auto-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fde68a;
+}
+
+.wait-hint {
+  margin: 0.1rem 0 0;
+  font-size: clamp(0.75rem, 2.8vw, 0.88rem);
+  color: color-mix(in oklab, #fde68a 85%, #fff);
+  letter-spacing: 0.04em;
+  text-align: center;
 }
 
 /* Outer mahjong table: thick wood rail, brass lip, green felt well */
@@ -504,11 +526,10 @@ button:disabled {
 }
 
 .hand-row {
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   align-items: flex-end;
-  justify-content: flex-start;
-  gap: var(--hand-row-gap);
+  gap: var(--hand-gap);
   width: 100%;
   margin: 0.15rem 0 0.15rem;
   box-sizing: border-box;
@@ -516,52 +537,41 @@ button:disabled {
   padding-top: var(--select-headroom);
 }
 
+.hand-row:has(.drawn-slot[hidden]) {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
 .hand-scroll {
-  /*
-   * Grow not required — size to the hand, then shrink if the row is tight.
-   * Growing to fill put the clip edge flush against 新牌 and hid the 16th tile.
-   */
-  flex: 0 1 auto;
-  width: max-content;
+  grid-column: span 8;
+  width: 100%;
   min-width: 0;
-  max-width: 100%;
-  /*
-   * Spec: if overflow-x is not visible, overflow-y can’t stay visible —
-   * it becomes auto/clip and cuts off translateY. Pad the scrollport
-   * so the lift + outline stay inside the box instead.
-   */
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  padding: var(--select-headroom) 0.2rem 0.2rem 0;
+  overflow: visible;
+  padding: var(--select-headroom) 0 0.15rem;
   margin-top: calc(-1 * var(--select-headroom));
-  scroll-padding-inline: 0.2rem;
 }
 
 .hand {
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   align-items: flex-end;
   gap: var(--hand-gap);
-  /* Must NOT max-width:100% — that kills horizontal scroll */
-  width: max-content;
+  width: 100%;
   min-height: var(--tile-h);
-  padding: 0 0.15rem;
-  justify-content: flex-start;
+  padding: 0;
 }
 
 .drawn-slot {
-  flex: 0 0 auto;
+  grid-column: 9;
+  align-self: end;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   position: relative;
   z-index: 0;
-  width: calc(var(--tile-face-w) + 0.7rem);
-  min-height: calc(var(--tile-h) + var(--select-headroom));
-  padding: var(--select-headroom) 0.3rem 0.15rem;
+  width: 100%;
+  min-width: 0;
+  min-height: calc(100% + var(--select-headroom));
+  padding: var(--select-headroom) 0.1rem 0.15rem;
   margin-top: calc(-1 * var(--select-headroom));
   box-sizing: border-box;
   overflow: visible;
@@ -614,11 +624,11 @@ button:disabled {
 
 .hand .tile {
   cursor: pointer;
-  flex: 0 0 auto;
-  width: var(--tile-face-w);
-  height: var(--tile-h);
-  min-width: var(--tile-face-w);
-  min-height: max(44px, var(--tile-h));
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 44px;
+  aspect-ratio: 3 / 4;
   padding: 0;
 }
 
@@ -644,11 +654,12 @@ button:disabled {
 
 .drawn-slot .tile {
   cursor: pointer;
-  flex: 0 0 var(--tile-face-w);
-  width: var(--tile-face-w);
-  height: var(--tile-h);
-  min-width: var(--tile-face-w);
-  min-height: max(44px, var(--tile-h));
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 44px;
+  aspect-ratio: 3 / 4;
   padding: 0;
   background: transparent;
   border: none;
@@ -716,6 +727,61 @@ button:disabled {
   padding: 1rem 1rem 1.1rem;
   border: 1px solid var(--line);
   margin-bottom: env(safe-area-inset-bottom);
+  max-height: min(88dvh, 40rem);
+  overflow: auto;
+}
+
+.panel-card-wide {
+  width: min(100%, 28rem);
+}
+
+.panel-note {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.rules-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.rules-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+}
+
+.rules-form label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+}
+
+.rules-form input[type="number"],
+.rules-form select {
+  min-height: 44px;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.about-body {
+  color: var(--muted);
+  font-size: 0.92rem;
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.about-body p {
+  margin: 0;
 }
 
 .panel-card h2 {
@@ -796,6 +862,23 @@ button:disabled {
 
   .hand-row {
     justify-content: center;
+    grid-template-columns: repeat(17, minmax(0, 1fr));
+  }
+
+  .hand-row:has(.drawn-slot[hidden]) {
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+  }
+
+  .hand-scroll {
+    grid-column: span 16;
+  }
+
+  .hand {
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+  }
+
+  .drawn-slot {
+    grid-column: 17;
   }
 
   .panel {
@@ -867,8 +950,4 @@ button:disabled {
     max-height: none;
   }
 
-  /* Keep overflow-x:auto — never hidden — so resize / edge cases still scroll */
-  .hand-scroll {
-    overflow-x: auto;
-  }
 }
