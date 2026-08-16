@@ -104,6 +104,9 @@ body {
 
 main {
   /* Cap at ~17-tile comfort width; center when the viewport is wider */
+  position: relative;
+  /* Height of the floating top strip; the felt reserves it as headroom */
+  --chrome-h: 44px;
   width: min(100%, var(--layout-max));
   max-width: var(--layout-max);
   margin: 0 auto;
@@ -111,7 +114,12 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-height: 100dvh;
+  /*
+   * One screen, no page scroll: the rivers scroll inside the felt so the
+   * player's hand and the action bar are always where the thumb expects them.
+   */
+  height: 100dvh;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -233,19 +241,165 @@ main {
   padding-top: 0.35rem;
 }
 
-.game-active .hero h1 {
-  font-size: 1.05rem;
-  letter-spacing: 0.08em;
-  text-align: left;
-}
-
+/* Mid-hand the table is the product; the title bar is not */
+.game-active .hero,
 .game-active .tagline,
 .game-active #btn-deal {
   display: none;
 }
 
+/*
+ * One floating top-edge strip: meter supplies the translucent backdrop and
+ * controls sit inside its right edge. Both leave normal flow, so the table
+ * receives all available height and never resizes when a menu opens.
+ * The felt reserves --chrome-h so the far seat is never hidden underneath.
+ */
+.game-active .table-felt {
+  padding-top: calc(var(--chrome-h) + 0.35rem);
+}
+
 .game-active .meter {
-  padding-block: 0.35rem;
+  position: absolute;
+  top: 0.45rem;
+  inset-inline: 0.8rem;
+  z-index: 6;
+  flex-wrap: nowrap;
+  gap: 0.15rem 0.45rem;
+  min-height: var(--chrome-h);
+  padding: 0.35rem 6.75rem 0.35rem 0.6rem;
+  border-color: color-mix(in oklab, var(--brass) 30%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, #111 14%, transparent);
+  color: #f8fafc;
+  font-size: 0.78rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  box-shadow: none;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.game-active .meter-item {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.15rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.game-active .meter-item .label {
+  display: none;
+}
+
+.game-active .meter-item:nth-child(2)::before {
+  content: "· 莊";
+  color: color-mix(in oklab, var(--brass) 75%, #fff);
+}
+
+.game-active .meter-item:nth-child(3)::before {
+  content: "· 山";
+  color: color-mix(in oklab, var(--brass) 75%, #fff);
+}
+
+.game-active .meter-rule {
+  display: none;
+}
+
+.game-active .controls {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.95rem;
+  z-index: 7;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  min-height: var(--chrome-h);
+  margin: 0;
+}
+
+.game-active .controls button,
+.game-active .more-menu summary {
+  min-width: 44px;
+  min-height: var(--chrome-h);
+  padding: 0.35rem 0.6rem;
+  border-color: color-mix(in oklab, var(--brass) 32%, transparent);
+  background: color-mix(in oklab, #111 22%, transparent);
+  color: #f8fafc;
+  font-size: 0.78rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(6px);
+}
+
+.game-active #btn-auto {
+  font-size: 0;
+}
+
+.game-active #btn-auto::before {
+  content: "託管";
+  font-size: 0.78rem;
+}
+
+.game-active #btn-auto[aria-pressed="true"]::before {
+  content: "接手";
+}
+
+.game-active .more-menu {
+  margin-left: 0;
+}
+
+.game-active .more-menu summary {
+  width: 44px;
+  padding: 0;
+  font-size: 0;
+}
+
+.game-active .more-menu summary::before {
+  content: "⋯";
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+/* Mid-hand the felt is the product; keep only a thin wood lip */
+.game-active .table {
+  --rail: clamp(0.22rem, 0.9vw, 0.38rem);
+  border-radius: 0.75rem;
+}
+
+.game-active .table-studs span {
+  width: 0.4rem;
+  height: 0.4rem;
+}
+
+/*
+ * During play the felt centre and the action bar carry the state, so the
+ * narration line only stays for screen readers instead of repeating it.
+ */
+.game-active .status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.game-active .flash {
+  position: absolute;
+  top: calc(var(--chrome-h) + 0.85rem);
+  left: 50%;
+  z-index: 12;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  margin: 0;
+  padding: 0.4rem 0.65rem;
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in oklab, #f59e0b 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, #111 34%, transparent);
+  color: #fde68a;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.22);
+  text-align: center;
+  backdrop-filter: blur(12px);
 }
 
 button {
@@ -320,17 +474,63 @@ button:focus-visible,
   }
 }
 
+/* 聽牌提示：牌面優先，數字＝該牌還沒現身的張數 */
 .wait-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem 0.3rem;
   margin: 0.1rem 0 0;
-  font-size: clamp(0.75rem, 2.8vw, 0.88rem);
-  color: color-mix(in oklab, #fde68a 85%, #fff);
-  letter-spacing: 0.04em;
-  text-align: center;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.55rem;
+  background: color-mix(in oklab, #000 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #fde68a 30%, transparent);
 }
 
-/* Outer mahjong table: thick wood rail, brass lip, green felt well */
+.wait-hint[hidden] {
+  display: none;
+}
+
+.wait-label {
+  font-size: clamp(0.7rem, 2.6vw, 0.82rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: color-mix(in oklab, #fde68a 88%, #fff);
+}
+
+.wait-tile {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
+  padding: 0.1rem 0.22rem 0.1rem 0.12rem;
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, #fde68a 16%, transparent);
+}
+
+.wait-count {
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  color: color-mix(in oklab, #fde68a 90%, #fff);
+}
+
+.wait-tile.dead {
+  background: color-mix(in oklab, #000 30%, transparent);
+}
+
+.wait-tile.dead .tile {
+  opacity: 0.42;
+}
+
+.wait-tile.dead .wait-count {
+  color: color-mix(in oklab, var(--danger) 55%, #fca5a5);
+}
+
+/* Outer mahjong table: wood rail, brass lip, green felt well */
 .table {
-  --rail: clamp(0.55rem, 2.2vw, 0.95rem);
+  /* Thin lip — width-keyed, but capped so it never eats the felt */
+  --rail: clamp(0.3rem, 1.1vw, 0.5rem);
   position: relative;
   /* Contain felt/seat z-index so they can’t paint over sticky 打牌列 */
   z-index: 0;
@@ -338,7 +538,7 @@ button:focus-visible,
   display: flex;
   flex-direction: column;
   padding: var(--rail);
-  border-radius: 1.15rem;
+  border-radius: 0.9rem;
   background:
     linear-gradient(
       155deg,
@@ -355,9 +555,53 @@ button:focus-visible,
     0 4px 10px rgba(0, 0, 0, 0.18);
   color: #e8f5ef;
   flex: 1 1 auto;
-  min-height: min(62dvh, 32rem);
+  min-height: 0;
   width: 100%;
   box-sizing: border-box;
+}
+
+/*
+ * Rivers scroll inside the felt, so their scrollbars sit on the baize: keep
+ * them thin and dark instead of the platform default light slab.
+ */
+.table-play,
+.seat,
+.seat-discards {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, #000 32%, transparent) transparent;
+}
+
+.table-play::-webkit-scrollbar,
+.seat::-webkit-scrollbar,
+.seat-discards::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.table-play::-webkit-scrollbar-track,
+.seat::-webkit-scrollbar-track,
+.seat-discards::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-play::-webkit-scrollbar-thumb,
+.seat::-webkit-scrollbar-thumb,
+.seat-discards::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklab, #000 32%, transparent);
+}
+
+/* The scrolling half of the felt: opponents, their melds, and the rivers */
+.table-play {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Keep lifted/selected chrome from being clipped by the scrollport */
+  padding-inline: 0.1rem;
 }
 
 .table-felt {
@@ -443,16 +687,17 @@ button:focus-visible,
     box-shadow 0.15s ease;
 }
 
+/*
+ * A side lane stretches to the full felt height, so a ring around the whole
+ * seat reads as a big empty frame. Cue the turn on the name pill and let the
+ * wash fade out just below it.
+ */
 .seat.active-turn {
-  background: color-mix(in oklab, #fbbf24 13%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in oklab, #fbbf24 75%, transparent);
-}
-
-.seat.active-turn .seat-meta {
-  border-color: #fbbf24;
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, #fff 25%, transparent),
-    0 0 12px color-mix(in oklab, #fbbf24 45%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, #fbbf24 14%, transparent) 0,
+    transparent 4rem
+  );
 }
 
 .seat-top {
@@ -461,6 +706,7 @@ button:focus-visible,
   align-items: center;
   text-align: center;
   gap: 0.25rem;
+  margin-top: auto;
 }
 
 .seat-top .seat-melds,
@@ -475,8 +721,10 @@ button:focus-visible,
   grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 0.5fr) minmax(0, 1fr);
   gap: 0.5rem;
   align-items: stretch;
-  flex: 1 1 auto;
-  min-height: calc(var(--tile-h) * 3.2);
+  /* Auto margins keep the table centred on tall screens and stay scroll-safe */
+  flex: 0 0 auto;
+  margin-bottom: auto;
+  min-height: calc(var(--tile-h) * 2.6);
 }
 
 .seat-left,
@@ -508,6 +756,13 @@ button:focus-visible,
   gap: 0.3rem;
   margin-top: auto;
   overflow: visible;
+  /* Hand block hugs its content; spare felt goes to the rivers above */
+  flex: 0 0 auto;
+}
+
+.seat-melds:empty,
+.seat-flowers:empty {
+  display: none;
 }
 
 .seat-meta {
@@ -562,14 +817,29 @@ button:focus-visible,
   color: #e0f2fe;
 }
 
-/* Central discard well — recessed wood tray on the felt */
+/* After the seat-you pill so the amber turn cue wins on your own seat too */
+.seat.active-turn .seat-meta {
+  border-color: #fbbf24;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, #fff 25%, transparent),
+    0 0 0 1px color-mix(in oklab, #fbbf24 70%, transparent),
+    0 0 14px color-mix(in oklab, #fbbf24 50%, transparent);
+}
+
+/*
+ * Central discard well — recessed wood tray on the felt.
+ * Sticky so the tile in play stays on screen while the rivers scroll.
+ */
 .center-felt {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  align-self: start;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  min-height: 100%;
   padding: 0.55rem 0.45rem;
   border-radius: 0.65rem;
   background:
@@ -593,6 +863,41 @@ button:focus-visible,
   text-align: center;
   color: color-mix(in oklab, var(--brass) 70%, #f5e6c8);
   letter-spacing: 0.06em;
+}
+
+/* Whose move it is — the felt centre answers this before anything else */
+.turn-hint {
+  margin: 0;
+  min-height: 1.1em;
+  font-size: clamp(0.72rem, 1.2vw, 0.9rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: color-mix(in oklab, #fde68a 88%, #fff);
+}
+
+.last-tile .tile.fresh .tile-face {
+  animation: tile-land 0.24s ease-out;
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, #fde68a 80%, transparent),
+    0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes tile-land {
+  from {
+    transform: translateY(-28%) scale(0.9);
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .last-tile .tile.fresh .tile-face {
+    animation: none;
+  }
+
+  .action-bar {
+    transition: none;
+  }
 }
 
 .last-tile {
@@ -629,28 +934,70 @@ button:focus-visible,
   opacity: 1;
 }
 
+/* Opponent rivers stay whole — reading the river is the point of a river */
 .seat-discards {
-  max-height: calc(var(--mini-h) * 3.4);
-  overflow: auto;
   opacity: 0.95;
   flex: 1 1 auto;
   align-content: flex-start;
   width: 100%;
 }
 
-.seat-top .seat-discards {
-  max-height: calc(var(--mini-h) * 2.4);
-}
-
+/* Your own river is the one you already know; keep it short and out of the way */
 .seat-you .seat-discards {
-  max-height: calc(var(--mini-h) * 2.2);
+  flex: 0 0 auto;
+  max-height: calc(var(--mini-h) * 1.6);
+  overflow: auto;
+  opacity: 0.8;
 }
 
+/* Opponent hands read as tile backs, so the table shows how much is still held */
+.seat-backs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.08rem;
+  width: 100%;
+  margin-bottom: 0.15rem;
+}
+
+.seat-backs:empty {
+  display: none;
+}
+
+.seat-top .seat-backs {
+  justify-content: center;
+}
+
+.seat-right .seat-backs {
+  justify-content: flex-end;
+}
+
+/* Backs are context, not content — they must never crowd out the rivers */
+.seat-backs .tile.back {
+  width: calc(var(--mini-w) * 0.56);
+  height: calc(var(--mini-h) * 0.56);
+  opacity: 0.92;
+}
+
+.seat-left .seat-backs .tile.back,
+.seat-right .seat-backs .tile.back {
+  width: calc(var(--mini-w) * 0.46);
+  height: calc(var(--mini-h) * 0.46);
+}
+
+.seat-backs .tile.drawn-back {
+  margin-inline-start: 0.3rem;
+}
+
+/*
+ * Always reserve the 9th／17th column for the drawn tile. Collapsing that
+ * column on discard made every other face jump when a new tile arrived.
+ */
 .hand-row {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr)) minmax(0, 1fr);
+  column-gap: var(--hand-gap);
+  row-gap: var(--hand-gap);
   align-items: flex-end;
-  gap: var(--hand-gap);
   width: 100%;
   margin: 0.15rem 0 0.15rem;
   box-sizing: border-box;
@@ -658,12 +1005,8 @@ button:focus-visible,
   padding-top: var(--select-headroom);
 }
 
-.hand-row:has(.drawn-slot[hidden]) {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-}
-
 .hand-scroll {
-  grid-column: span 8;
+  grid-column: 1 / span 8;
   width: 100%;
   min-width: 0;
   overflow: visible;
@@ -722,8 +1065,21 @@ button:focus-visible,
   line-height: 1;
 }
 
+/*
+ * Keep the reserved column when empty. The [hidden] attribute would remove
+ * the box from layout; override so existing faces stay put across a draw.
+ */
 .drawn-slot[hidden] {
-  display: none;
+  display: flex !important;
+  visibility: hidden;
+  pointer-events: none;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.drawn-slot[hidden]::before {
+  content: none;
 }
 
 .tile {
@@ -809,33 +1165,91 @@ button:focus-visible,
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
+/*
+ * Actor bar floats immediately above the player's seat. It never participates
+ * in page/table layout, so a claim window cannot resize the felt.
+ */
 .action-bar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.45rem;
-  position: sticky;
-  bottom: 0;
+  gap: 0.4rem;
+  position: absolute;
+  inset-inline: 0.4rem;
+  bottom: calc(100% + 0.35rem);
   z-index: 10;
-  padding: 0.55rem 0.15rem max(0.55rem, env(safe-area-inset-bottom));
-  background: color-mix(in oklab, var(--bg) 92%, transparent);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid color-mix(in oklab, var(--line) 65%, transparent);
+  width: auto;
+  max-width: 28rem;
+  margin-inline: auto;
+  padding: 0.45rem;
+  border: 1px solid color-mix(in oklab, var(--line) 70%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  color: var(--text);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transition:
+    opacity 0.12s ease-out,
+    transform 0.12s ease-out;
 }
 
-.action-bar button {
-  width: 100%;
+/* display: grid would otherwise beat [hidden] and leave an empty plate on the felt */
+.action-bar[hidden] {
+  display: none;
 }
 
-.action-bar .accent {
-  grid-column: span 2;
+/* A seat creates its own stacking context; lift that context with the actor. */
+.seat-you:has(.action-bar:not([hidden])) {
+  z-index: 5;
+}
+
+@starting-style {
+  .action-bar:not([hidden]) {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Claim buttons share a row; a lone 碰／吃 grows to fill it */
+.action-buttons button {
+  flex: 1 1 6rem;
+  min-width: 0;
+}
+
+/* 胡 outranks everything on the table, so it reads that way */
+#btn-hu {
+  flex-basis: 100%;
+  min-height: 54px;
+  font-size: 1.2rem;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em;
+  background: linear-gradient(180deg, #dc2626, #991b1b);
+  border-color: color-mix(in oklab, var(--brass) 70%, #fff);
+  color: #fff7ed;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, #fff 35%, transparent),
+    0 3px 10px color-mix(in oklab, #dc2626 40%, transparent);
 }
 
 #btn-discard {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
+}
+
+/* 略過 stays reachable but never competes with a claim */
+#btn-pass {
+  flex-basis: 100%;
+  min-height: 44px;
+  background: transparent;
+  border-color: color-mix(in oklab, var(--line) 80%, transparent);
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .action-prompt {
-  grid-column: 1 / -1;
   margin: 0;
   color: var(--muted);
   font-size: 0.8rem;
@@ -845,7 +1259,12 @@ button:focus-visible,
 .chi-picker {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.chi-picker[hidden] {
+  display: none;
 }
 
 .chi-option {
@@ -1016,12 +1435,11 @@ button:focus-visible,
   }
 
   .table {
-    min-height: min(74dvh, 42rem);
-    --rail: clamp(0.7rem, 2vw, 1.05rem);
+    --rail: clamp(0.35rem, 0.9vw, 0.55rem);
   }
 
   .table-felt {
-    padding: 0.7rem 0.75rem 0.8rem;
+    padding: 0.55rem 0.6rem 0.65rem;
     gap: 0.55rem;
   }
 
@@ -1030,25 +1448,19 @@ button:focus-visible,
     gap: 0.65rem;
   }
 
-  .seat-discards {
-    max-height: calc(var(--mini-h) * 4.6);
-  }
-
-  .seat-top .seat-discards {
-    max-height: calc(var(--mini-h) * 3.2);
+  .seat-you .seat-discards {
+    max-height: calc(var(--mini-h) * 2.2);
   }
 
   .hand-row {
     justify-content: center;
-    grid-template-columns: repeat(17, minmax(0, 1fr));
-  }
-
-  .hand-row:has(.drawn-slot[hidden]) {
-    grid-template-columns: repeat(16, minmax(0, 1fr));
+    /* 16 hand faces + reserved drawn column — never collapse the 17th */
+    grid-template-columns: repeat(16, minmax(0, 1fr)) minmax(0, 1fr);
+    column-gap: var(--hand-row-gap);
   }
 
   .hand-scroll {
-    grid-column: span 16;
+    grid-column: 1 / span 16;
   }
 
   .hand {
@@ -1081,13 +1493,12 @@ button:focus-visible,
   }
 
   .table {
-    --rail: 1.05rem;
-    min-height: min(78dvh, 48rem);
+    --rail: 0.55rem;
     width: 100%;
   }
 
   .table-felt {
-    padding: 0.85rem 1rem 0.95rem;
+    padding: 0.65rem 0.75rem 0.75rem;
     gap: 0.65rem;
     container-type: inline-size;
     container-name: felt;
@@ -1118,14 +1529,288 @@ button:focus-visible,
     height: calc(var(--tile-h) * 1.08);
   }
 
-  .seat-discards {
-    max-height: none;
-    overflow: visible;
-  }
-
-  .seat-top .seat-discards,
   .seat-you .seat-discards {
-    max-height: none;
+    max-height: calc(var(--mini-h) * 2.6);
+  }
+}
+
+/*
+ * Landscape phones: height is the scarce axis, so tiles size off the viewport
+ * height and the least useful row (your own river) steps aside.
+ */
+@media (max-height: 560px) {
+  :root {
+    --tile-face-max: 2rem;
+    --tile-face-w: clamp(1.35rem, 6vh, var(--tile-face-max));
+    --select-lift: 0.4rem;
   }
 
+  /*
+   * Landscape: tiles size off vh, so the rail must too — never follow vw,
+   * or the wood lip looks fat around a short table.
+   */
+  .table,
+  .game-active .table {
+    --rail: clamp(0.14rem, 1vh, 0.26rem);
+    border-radius: 0.55rem;
+  }
+
+  .table-studs {
+    inset: 0.18rem;
+  }
+
+  .table-studs span,
+  .game-active .table-studs span {
+    width: 0.28rem;
+    height: 0.28rem;
+  }
+
+  .table-felt {
+    --tile-face-w: clamp(1.35rem, 6vh, var(--tile-face-max));
+    --tile-h: calc(var(--tile-face-w) * 4 / 3);
+    --mini-h: calc(var(--tile-h) * 0.6);
+    --mini-w: calc(var(--mini-h) * 0.75);
+    padding: 0.28rem 0.35rem 0.32rem;
+    /* Slimmer brass lip when vertical room is scarce */
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--brass) 55%, var(--wood-lo)),
+      inset 0 0 0 2px color-mix(in oklab, var(--wood-lo) 85%, #000),
+      inset 0 2px 6px rgba(0, 0, 0, 0.35),
+      inset 0 -1px 4px color-mix(in oklab, var(--felt-hi) 35%, transparent);
+  }
+
+  /* The buttons themselves are the prompt when vertical room runs out */
+  .action-prompt {
+    display: none;
+  }
+
+  .controls button,
+  .more-menu summary {
+    padding-block: 0.3rem;
+  }
+
+  .seat-you .seat-discards {
+    display: none;
+  }
+
+  /*
+   * Landscape has no height to spare: instead of reserving a band above the
+   * far seat, the strip splits into two corner docks and the far seat's
+   * centred name／張數 stays readable between them.
+   */
+  body.game-active main {
+    --chrome-h: 30px;
+  }
+
+  .game-active .table-felt {
+    padding-top: 0.28rem;
+  }
+
+  .game-active .meter {
+    display: flex;
+    top: 0.3rem;
+    right: auto;
+    left: 0.55rem;
+    width: max-content;
+    max-width: 40%;
+    padding: 0.15rem 0.5rem;
+    border-color: transparent;
+    background: none;
+    font-size: 0.72rem;
+    backdrop-filter: none;
+  }
+
+  .game-active .controls {
+    top: 0.3rem;
+    right: 0.65rem;
+  }
+
+  /* Never let the far seat shrink away; its own river scrolls instead */
+  .game-active .seat-top {
+    flex: 0 0 auto;
+    min-height: calc(var(--mini-h) * 2.2);
+  }
+
+  .game-active .controls button,
+  .game-active .more-menu summary {
+    min-width: 38px;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .game-active .more-menu summary {
+    width: 40px;
+  }
+
+  /* Tile backs are redundant here — 張數 in each seat label carries the same fact */
+  .seat-backs {
+    display: none;
+  }
+
+  .seat-left .seat-discards,
+  .seat-right .seat-discards {
+    max-height: calc(var(--mini-h) * 1.7);
+    overflow: auto;
+  }
+
+  /* Cap the far seat so the centre tray — the tile in play — stays on screen */
+  .seat-top {
+    max-height: calc(var(--mini-h) * 3.4);
+    overflow: auto;
+  }
+
+  .seat-mid {
+    min-height: calc(var(--tile-h) * 2);
+  }
+
+  .center-felt {
+    padding: 0.3rem 0.3rem;
+    gap: 0.15rem;
+  }
+
+  .turn-hint,
+  .trick-hint {
+    font-size: 0.66rem;
+  }
+
+  .last-tile {
+    min-height: calc(var(--tile-h) * 0.9);
+  }
+
+  #btn-hu {
+    min-height: 46px;
+    font-size: 1.05rem;
+  }
+
+  /*
+   * One row, docked to the thumb side: stacked full-width claims would cover
+   * the centre tray, and the tile you are claiming has to stay visible.
+   */
+  .action-bar {
+    inset-inline: auto 0.35rem;
+    bottom: calc(100% + 0.2rem);
+    width: max-content;
+    max-width: calc(100% - 0.7rem);
+    margin-inline: 0;
+    gap: 0.25rem;
+    padding: 0.3rem;
+  }
+
+  .action-buttons {
+    flex-wrap: nowrap;
+  }
+
+  .action-buttons button,
+  #btn-hu,
+  #btn-pass {
+    flex: 0 1 auto;
+    min-width: 3.6rem;
+  }
+
+  #btn-pass {
+    min-height: 44px;
+  }
+}
+
+/*
+ * Landscape landing: controls form a compact left rail while the empty table
+ * gets the full right pane. Once a hand starts, .game-active returns to the
+ * single-screen play layout above.
+ */
+@media (orientation: landscape) and (max-height: 560px) {
+  body:not(.game-active) main {
+    display: grid;
+    grid-template-columns: clamp(12rem, 29vw, 16rem) minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.35rem 0.55rem;
+    padding: 0.4rem max(0.45rem, env(safe-area-inset-right))
+      max(0.4rem, env(safe-area-inset-bottom))
+      max(0.45rem, env(safe-area-inset-left));
+  }
+
+  body:not(.game-active) .hero,
+  body:not(.game-active) .meter,
+  body:not(.game-active) .controls,
+  body:not(.game-active) .status,
+  body:not(.game-active) .flash {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  body:not(.game-active) .hero {
+    align-self: end;
+  }
+
+  body:not(.game-active) .hero h1 {
+    font-size: clamp(1.2rem, 5vh, 1.65rem);
+    text-align: left;
+  }
+
+  body:not(.game-active) .tagline {
+    margin-top: 0.1rem;
+    font-size: 0.74rem;
+    text-align: left;
+  }
+
+  body:not(.game-active) .meter {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem 0.5rem;
+    padding: 0.4rem 0.5rem;
+  }
+
+  body:not(.game-active) .meter-item {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  body:not(.game-active) .controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  body:not(.game-active) .controls > button,
+  body:not(.game-active) .more-menu,
+  body:not(.game-active) .more-menu summary {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body:not(.game-active) #btn-deal {
+    grid-column: 1 / -1;
+  }
+
+  body:not(.game-active) .more-menu {
+    margin-left: 0;
+  }
+
+  body:not(.game-active) .status {
+    grid-row: 4;
+    margin-top: 0.1rem;
+    font-size: 0.78rem;
+  }
+
+  body:not(.game-active) .flash {
+    grid-row: 4;
+    align-self: start;
+  }
+
+  body:not(.game-active) main:has(.flash:not([hidden])) .status {
+    visibility: hidden;
+  }
+
+  body:not(.game-active) .table {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    align-self: stretch;
+    height: 100%;
+    min-height: 0;
+  }
+
+  body:not(.game-active) .table-felt {
+    min-height: 0;
+  }
 }

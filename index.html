@@ -9,7 +9,7 @@
       content="台灣麻將：十六張常見可配家規、四人人機、補花吃碰槓胡。純前端 Playgrounds SAM。"
     />
     <title>台灣麻將</title>
-    <link rel="stylesheet" href="./styles.css?v=3" />
+    <link rel="stylesheet" href="./styles.css?v=14" />
     <link rel="stylesheet" href="./tiles.css" />
   </head>
   <body>
@@ -65,47 +65,54 @@
             <span></span><span></span><span></span><span></span>
           </div>
 
-          <div class="seat seat-top" data-seat="2">
-            <div class="seat-meta">
-              <span class="seat-name" id="name-2">阿北</span>
-              <span class="seat-wind" id="wind-2"></span>
-              <span class="seat-count" id="count-2">0</span>
-              <span class="seat-score" id="score-2">0</span>
-            </div>
-            <div class="seat-melds" id="melds-2"></div>
-            <div class="seat-flowers" id="flowers-2"></div>
-            <div class="seat-discards" id="discards-2"></div>
-          </div>
-
-          <div class="seat-mid">
-            <!-- 下家在右：seat 1；上家在左：seat 3（逆時針） -->
-            <div class="seat seat-left" data-seat="3">
+          <!-- Rivers/backs scroll here; the player's own hand never moves -->
+          <div class="table-play">
+            <div class="seat seat-top" data-seat="2">
               <div class="seat-meta">
-                <span class="seat-name" id="name-3">黑哥</span>
-                <span class="seat-wind" id="wind-3"></span>
-                <span class="seat-count" id="count-3">0</span>
-                <span class="seat-score" id="score-3">0</span>
+                <span class="seat-name" id="name-2">阿北</span>
+                <span class="seat-wind" id="wind-2"></span>
+                <span class="seat-count" id="count-2">0</span>
+                <span class="seat-score" id="score-2">0</span>
               </div>
-              <div class="seat-melds" id="melds-3"></div>
-              <div class="seat-flowers" id="flowers-3"></div>
-              <div class="seat-discards" id="discards-3"></div>
+              <div class="seat-backs" id="backs-2" aria-hidden="true"></div>
+              <div class="seat-melds" id="melds-2"></div>
+              <div class="seat-flowers" id="flowers-2"></div>
+              <div class="seat-discards" id="discards-2"></div>
             </div>
 
-            <div class="center-felt" aria-live="polite">
-              <p id="last-tile-hint" class="trick-hint">尚未打牌</p>
-              <div id="last-tile" class="last-tile"></div>
-            </div>
-
-            <div class="seat seat-right" data-seat="1">
-              <div class="seat-meta">
-                <span class="seat-name" id="name-1">小梅</span>
-                <span class="seat-wind" id="wind-1"></span>
-                <span class="seat-count" id="count-1">0</span>
-                <span class="seat-score" id="score-1">0</span>
+            <div class="seat-mid">
+              <!-- 下家在右：seat 1；上家在左：seat 3（逆時針） -->
+              <div class="seat seat-left" data-seat="3">
+                <div class="seat-meta">
+                  <span class="seat-name" id="name-3">黑哥</span>
+                  <span class="seat-wind" id="wind-3"></span>
+                  <span class="seat-count" id="count-3">0</span>
+                  <span class="seat-score" id="score-3">0</span>
+                </div>
+                <div class="seat-backs" id="backs-3" aria-hidden="true"></div>
+                <div class="seat-melds" id="melds-3"></div>
+                <div class="seat-flowers" id="flowers-3"></div>
+                <div class="seat-discards" id="discards-3"></div>
               </div>
-              <div class="seat-melds" id="melds-1"></div>
-              <div class="seat-flowers" id="flowers-1"></div>
-              <div class="seat-discards" id="discards-1"></div>
+
+              <div class="center-felt" aria-live="polite">
+                <p id="turn-hint" class="turn-hint"></p>
+                <div id="last-tile" class="last-tile"></div>
+                <p id="last-tile-hint" class="trick-hint">尚未打牌</p>
+              </div>
+
+              <div class="seat seat-right" data-seat="1">
+                <div class="seat-meta">
+                  <span class="seat-name" id="name-1">小梅</span>
+                  <span class="seat-wind" id="wind-1"></span>
+                  <span class="seat-count" id="count-1">0</span>
+                  <span class="seat-score" id="score-1">0</span>
+                </div>
+                <div class="seat-backs" id="backs-1" aria-hidden="true"></div>
+                <div class="seat-melds" id="melds-1"></div>
+                <div class="seat-flowers" id="flowers-1"></div>
+                <div class="seat-discards" id="discards-1"></div>
+              </div>
             </div>
           </div>
 
@@ -120,6 +127,8 @@
             </div>
             <div class="seat-melds" id="melds-0"></div>
             <div class="seat-flowers" id="flowers-0"></div>
+            <!-- Your own river sits in front of you, between felt and hand -->
+            <div class="seat-discards" id="discards-0"></div>
             <div class="hand-row">
               <div class="hand-scroll">
                 <div id="hand" class="hand" role="listbox" aria-label="手牌"></div>
@@ -131,26 +140,25 @@
                 aria-label="剛摸進的牌"
               ></div>
             </div>
-            <p id="wait-hint" class="wait-hint" hidden></p>
-            <div class="seat-discards" id="discards-0"></div>
+            <div id="wait-hint" class="wait-hint" hidden aria-label="聽牌"></div>
+            <div id="action-bar" class="action-bar" hidden>
+              <p id="action-prompt" class="action-prompt">請選擇動作</p>
+              <div id="chi-picker" class="chi-picker" hidden></div>
+              <div id="kong-picker" class="chi-picker" hidden></div>
+              <div class="action-buttons">
+                <button type="button" id="btn-hu" class="hu" hidden>胡</button>
+                <button type="button" id="btn-kong" hidden>槓</button>
+                <button type="button" id="btn-pong" hidden>碰</button>
+                <button type="button" id="btn-chi" hidden>吃</button>
+                <button type="button" id="btn-ankong" hidden>暗槓</button>
+                <button type="button" id="btn-jiakong" hidden>加槓</button>
+                <button type="button" id="btn-discard" class="accent" hidden>打出</button>
+                <button type="button" id="btn-pass" class="ghost" hidden>略過</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
-
-      <div id="action-bar" class="action-bar" hidden>
-        <p id="action-prompt" class="action-prompt">請選擇動作</p>
-        <button type="button" id="btn-hu" class="accent" hidden>胡</button>
-        <button type="button" id="btn-kong" hidden>槓</button>
-        <button type="button" id="btn-pong" hidden>碰</button>
-        <button type="button" id="btn-chi" hidden>吃</button>
-        <button type="button" id="btn-pass" class="secondary" hidden>略過</button>
-        <button type="button" id="btn-discard" class="accent" hidden>打出</button>
-        <button type="button" id="btn-ankong" hidden>暗槓</button>
-        <button type="button" id="btn-jiakong" hidden>加槓</button>
-      </div>
-
-      <div id="chi-picker" class="chi-picker" hidden></div>
-      <div id="kong-picker" class="chi-picker" hidden></div>
     </main>
 
     <div id="panel-result" class="panel" hidden>
@@ -263,6 +271,6 @@
       </div>
     </div>
 
-    <script type="module" src="./app.js?v=3"></script>
+    <script type="module" src="./app.js?v=6"></script>
   </body>
 </html>

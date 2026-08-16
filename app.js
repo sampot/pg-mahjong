@@ -15,7 +15,15 @@ import {
 } from "./game.js";
 import { SEAT_NAMES, WIND_LABELS, tileDef } from "./tiles.js";
 import { DEFAULT_RULESET } from "./ruleset.js";
-import { nextTileTap, shouldCompactChrome } from "./ux.js";
+import {
+  actionBarPlan,
+  handBackLayout,
+  nextTileTap,
+  shouldCompactChrome,
+  shouldResumeAiAfterAutoToggle,
+  turnHintText,
+  waitSummaries,
+} from "./ux.js";
 
 const audio = new MahjongAudio();
 /** @type {import('./game.js').GameState} */
@@ -40,6 +48,7 @@ const el = {
   drawnSlot: /** @type {HTMLElement} */ (document.getElementById("drawn-slot")),
   lastTile: /** @type {HTMLElement} */ (document.getElementById("last-tile")),
   lastHint: /** @type {HTMLElement} */ (document.getElementById("last-tile-hint")),
+  turnHint: /** @type {HTMLElement} */ (document.getElementById("turn-hint")),
   actionBar: /** @type {HTMLElement} */ (document.getElementById("action-bar")),
   chiPicker: /** @type {HTMLElement} */ (document.getElementById("chi-picker")),
   kongPicker: /** @type {HTMLElement} */ (document.getElementById("kong-picker")),
@@ -114,7 +123,9 @@ el.btnAuto.addEventListener("click", () => {
   selectedId = null;
   clearAi();
   render();
-  if (autoPlayPlayer) scheduleAi();
+  // Must resume even when turning OFF — otherwise an interrupted opponent
+  // discard or claim window never resolves and you never draw on your turn.
+  if (shouldResumeAiAfterAutoToggle(autoPlayPlayer)) scheduleAi();
 });
 
 el.btnRules.addEventListener("click", () => {
@@ -640,6 +651,7 @@ function render() {
 
     renderMelds(s);
     renderFlowers(s);
+    renderBacks(s);
     renderDiscards(s);
   }
 
@@ -651,6 +663,7 @@ function render() {
 
 function renderWaitHint() {
   if (!el.waitHint) return;
+  el.waitHint.replaceChildren();
   if (state.phase !== "playing" && state.phase !== "claim") {
     el.waitHint.hidden = true;
     return;
@@ -668,7 +681,58 @@ function renderWaitHint() {
     return;
   }
   el.waitHint.hidden = false;
-  el.waitHint.textContent = `聽：${waits.map((k) => tileDef(k).label).join("、")}`;
+  const label = document.createElement("span");
+  label.className = "wait-label";
+  label.textContent = "聽";
+  el.waitHint.appendChild(label);
+  for (const { key, remaining } of waitSummaries(waits, seenTileKeys())) {
+    const item = document.createElement("span");
+    item.className = "wait-tile" + (remaining === 0 ? " dead" : "");
+    item.title = `${tileDef(key).label} 剩 ${remaining} 張`;
+    item.appendChild(tileImg(key, true));
+    const count = document.createElement("span");
+    count.className = "wait-count";
+    count.textContent = String(remaining);
+    item.appendChild(count);
+    el.waitHint.appendChild(item);
+  }
+}
+
+/** Every tile key already face-up somewhere, for 剩餘張數 on the wait row. */
+function seenTileKeys() {
+  /** @type {string[]} */
+  const keys = [];
+  for (const seat of state.seats) {
+    for (const meld of seat.melds) {
+      for (const t of meld.tiles) keys.push(t.key);
+    }
+    for (const t of seat.discards) keys.push(t.key);
+    for (const t of seat.flowers) keys.push(t.key);
+  }
+  for (const t of state.seats[PLAYER].hand) keys.push(t.key);
+  if (state.turn === PLAYER && state.drawnTile) keys.push(state.drawnTile.key);
+  return keys;
+}
+
+/**
+ * @param {number} seat
+ */
+function renderBacks(seat) {
+  const root = document.getElementById(`backs-${seat}`);
+  if (!root) return;
+  root.replaceChildren();
+  if (seat === PLAYER || state.phase === "idle") return;
+  const hasDrawn =
+    state.turn === seat && Boolean(state.drawnTile) && state.mustDiscard;
+  const { backs, drawn } = handBackLayout(state.seats[seat].hand.length, hasDrawn);
+  for (let i = 0; i < backs; i++) {
+    root.appendChild(tileImg(null, true, true));
+  }
+  if (drawn) {
+    const tile = tileImg(null, true, true);
+    tile.classList.add("drawn-back");
+    root.appendChild(tile);
+  }
 }
 
 function renderHand() {
@@ -773,7 +837,7 @@ function renderDiscards(seat) {
   const root = document.getElementById(`discards-${seat}`);
   if (!root) return;
   root.replaceChildren();
-  const list = state.seats[seat].discards.slice(-18);
+  const list = state.seats[seat].discards;
   for (const [index, t] of list.entries()) {
     const tile = tileImg(t.key, true);
     if (index >= list.length - 2) tile.classList.add("recent");
@@ -783,14 +847,29 @@ function renderDiscards(seat) {
 
 function renderLastTile() {
   el.lastTile.replaceChildren();
+  if (el.turnHint) {
+    el.turnHint.textContent = turnHintText({
+      phase: state.phase,
+      turn: state.turn,
+      mustDiscard: Boolean(state.mustDiscard),
+      seatName: SEAT_NAMES[state.turn],
+      playerSeat: PLAYER,
+      hasDrawn: Boolean(state.drawnTile),
+    });
+  }
   const t = state.lastDiscard?.tile || state.claim?.tile;
   if (t) {
-    el.lastTile.appendChild(tileImg(t.key, false));
-    const mode = state.claim?.mode === "rob_kong" ? "加槓" : "打出";
-    el.lastHint.textContent = `${mode} ${tileDef(t.key).label}`;
-  } else {
+    const tile = tileImg(t.key, false);
+    tile.classList.add("fresh");
+    el.lastTile.appendChild(tile);
+    const who = state.claim?.mode === "rob_kong" ? "加槓" : "打出";
+    const from = state.lastDiscard?.from ?? state.claim?.from;
     el.lastHint.textContent =
-      state.phase === "playing" ? "請打牌" : "尚未打牌";
+      from == null
+        ? `${who} ${tileDef(t.key).label}`
+        : `${SEAT_NAMES[from]} ${who} ${tileDef(t.key).label}`;
+  } else {
+    el.lastHint.textContent = state.phase === "playing" ? "請打牌" : "尚未打牌";
   }
 }
 
@@ -808,63 +887,56 @@ function renderActions() {
     el.kongPicker.replaceChildren();
   }
 
-  const show = (btn, on) => {
-    btn.hidden = !on;
+  const onTurn =
+    state.phase === "playing" && state.turn === PLAYER && state.mustDiscard;
+  const plan = actionBarPlan({
+    phase: state.phase,
+    autoPlay: autoPlayPlayer,
+    isPlayerTurn: state.turn === PLAYER,
+    mustDiscard: Boolean(state.mustDiscard),
+    claimKinds:
+      state.phase === "claim" ? legalClaims(state, PLAYER).map((o) => o.kind) : [],
+    claimDone: Boolean(
+      state.claim?.passes[PLAYER] || state.claim?.pending[PLAYER],
+    ),
+    robKong: state.claim?.mode === "rob_kong",
+    canHuSelf: onTurn && canHuSelf(state, PLAYER),
+    canAnKong: onTurn && anKongKeys(state, PLAYER).length > 0,
+    canJiaKong: onTurn && jiaKongTileIds(state, PLAYER).length > 0,
+    selectedLabel: selectedTileLabel(),
+  });
+
+  /** @type {Record<string, HTMLButtonElement>} */
+  const buttons = {
+    hu: el.btnHu,
+    kong: el.btnKong,
+    pong: el.btnPong,
+    chi: el.btnChi,
+    ankong: el.btnAnkong,
+    jiakong: el.btnJiakong,
+    discard: el.btnDiscard,
+    pass: el.btnPass,
   };
-
-  let any = false;
-  show(el.btnHu, false);
-  show(el.btnKong, false);
-  show(el.btnPong, false);
-  show(el.btnChi, false);
-  show(el.btnPass, false);
-  show(el.btnDiscard, false);
-  show(el.btnAnkong, false);
-  show(el.btnJiakong, false);
-
-  if (autoPlayPlayer) {
-    el.actionBar.hidden = true;
-    return;
+  for (const [kind, btn] of Object.entries(buttons)) {
+    btn.hidden = !plan.buttons.includes(kind);
   }
-
-  if (state.phase === "claim") {
-    el.actionPrompt.textContent =
-      state.claim?.mode === "rob_kong" ? "可搶槓，請選擇" : "有人打牌，請選擇";
-    const opts = legalClaims(state, PLAYER);
-    const done = state.claim?.passes[PLAYER] || state.claim?.pending[PLAYER];
-    if (!done) {
-      for (const o of opts) {
-        if (o.kind === "hu") show(el.btnHu, true);
-        if (o.kind === "kong") show(el.btnKong, true);
-        if (o.kind === "pong") show(el.btnPong, true);
-        if (o.kind === "chi") show(el.btnChi, true);
-      }
-      show(el.btnPass, true);
-      any = true;
-    }
-  } else if (
-    state.phase === "playing" &&
-    state.turn === PLAYER &&
-    state.mustDiscard
-  ) {
-    el.actionPrompt.textContent = selectedId == null
-      ? "點牌選取；再點一次直接打出"
-      : `已選 ${tileDef(
-          state.drawnTile?.id === selectedId
-            ? state.drawnTile.key
-            : state.seats[PLAYER].hand.find((t) => t.id === selectedId)?.key ||
-                "man1",
-        ).label}，再點一次或按「打出」`;
-    show(el.btnDiscard, true);
-    any = true;
-    if (canHuSelf(state, PLAYER)) {
-      show(el.btnHu, true);
-    }
-    if (anKongKeys(state, PLAYER).length) show(el.btnAnkong, true);
-    if (jiaKongTileIds(state, PLAYER).length) show(el.btnJiakong, true);
+  el.actionPrompt.textContent = plan.prompt;
+  el.actionBar.hidden = !plan.visible;
+  if (!plan.visible) {
+    el.chiPicker.hidden = true;
+    el.chiPicker.replaceChildren();
+    el.kongPicker.hidden = true;
+    el.kongPicker.replaceChildren();
   }
+}
 
-  el.actionBar.hidden = !any;
+function selectedTileLabel() {
+  if (selectedId == null) return null;
+  const tile =
+    state.drawnTile?.id === selectedId
+      ? state.drawnTile
+      : state.seats[PLAYER].hand.find((t) => t.id === selectedId);
+  return tile ? tileDef(tile.key).label : null;
 }
 
 /**
