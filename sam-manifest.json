@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "rev": "98bfd77",
+  "rev": "2026-08-22-room",
   "files": [
     "ai.js",
     "app.js",
@@ -66,9 +66,11 @@
     "protocol.js",
     "ruleset.js",
     "score.js",
+    "shellSurface.js",
     "styles.css",
     "tiles.css",
     "tiles.js",
+    "ui-state.js",
     "ux.js"
   ]
 }

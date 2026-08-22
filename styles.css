@@ -182,6 +182,44 @@ main {
   align-items: center;
 }
 
+.online-meta {
+  margin: 0;
+  flex: 1 1 100%;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+body[data-layout="match"] .hero,
+body[data-layout="match"] .tagline,
+body[data-layout="over"] .hero,
+body[data-layout="over"] .tagline {
+  display: none;
+}
+
+body[data-pg-surface="room"] #solo-controls {
+  display: none;
+}
+
+body[data-layout="match"] #online-controls.match-bar {
+  display: flex;
+}
+
+body[data-online-role="spectator"] #btn-auto,
+body[data-online-role="spectator"] .seat-you .hand-row,
+body[data-online-role="spectator"] .seat-you #action-bar,
+body[data-online-role="spectator"] #btn-rules,
+body[data-online-role="guest"] #btn-rules {
+  display: none;
+}
+
+body[data-online-role="host"] #btn-rules {
+  display: inline-flex;
+}
+
 .more-menu {
   position: relative;
   margin-left: auto;

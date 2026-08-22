@@ -6,13 +6,15 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="台灣麻將：十六張常見可配家規、四人人機、補花吃碰槓胡。純前端 Playgrounds SAM。"
+      content="台灣麻將：十六張常見可配家規、四人人機、補花吃碰槓胡；包廂可四人連線。"
     />
+    <meta name="sam:protocol" content="mahjong.v1:host+p2+p3+p4" />
+    <meta name="sam:capabilities" content="session:host, platform:invite" />
     <title>台灣麻將</title>
     <link rel="stylesheet" href="./styles.css?v=14" />
     <link rel="stylesheet" href="./tiles.css" />
   </head>
-  <body>
+  <body data-layout="setup">
     <main>
       <header class="hero">
         <h1>台灣麻將</h1>
@@ -38,7 +40,7 @@
         </div>
       </section>
 
-      <div class="controls">
+      <div class="controls" id="solo-controls">
         <button type="button" id="btn-deal">開局</button>
         <button type="button" id="btn-auto" class="secondary" aria-pressed="false">
           託管
@@ -54,6 +56,12 @@
             <button type="button" id="btn-reset" class="secondary">重來</button>
           </div>
         </details>
+      </div>
+
+      <div class="controls" id="online-controls" hidden>
+        <p id="online-meta" class="online-meta muted">包廂對弈</p>
+        <button type="button" id="btn-online-deal" class="primary" hidden>發牌開局</button>
+        <button type="button" id="btn-online-reset" class="secondary" hidden>再來一局</button>
       </div>
 
       <p id="status" class="status" role="status">點「開局」發牌。</p>
@@ -170,6 +178,7 @@
         <ul id="result-pay" class="tai-list"></ul>
         <div class="panel-actions">
           <button type="button" id="btn-result-ok">下一局</button>
+          <p id="result-host-hint" class="panel-note" hidden>等候主持再開下一局</p>
         </div>
       </div>
     </div>
@@ -271,6 +280,6 @@
       </div>
     </div>
 
-    <script type="module" src="./app.js?v=6"></script>
+    <script type="module" src="./app.js?v=7"></script>
   </body>
 </html>
